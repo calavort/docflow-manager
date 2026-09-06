@@ -28,7 +28,34 @@ def _import_com():
         raise RuntimeError("Automacao DWG requer pywin32. Execute instalar_bibliotecas.bat e tente novamente.") from exc
 
 
+_POINT_FACTORY = None
+
+
+def _point(x: float, y: float, z: float):
+    """Ponto 3D no formato que o AutoCAD aceita.
+
+    A partir do AutoCAD 2027 uma tupla comum e recusada com E_INVALIDARG
+    (-2147024809): a API exige um array tipado de doubles. O VARIANT abaixo
+    funciona tambem nas versoes anteriores.
+    """
+    global _POINT_FACTORY
+    if _POINT_FACTORY is None:
+        try:
+            import pythoncom  # type: ignore
+            from win32com.client import VARIANT  # type: ignore
+
+            tipo = pythoncom.VT_ARRAY | pythoncom.VT_R8
+            _POINT_FACTORY = lambda values: VARIANT(tipo, values)  # noqa: E731
+        except Exception:
+            _POINT_FACTORY = tuple
+    return _POINT_FACTORY((float(x), float(y), float(z)))
+
+
 def _is_busy_error(exc: Exception) -> bool:
+    # Com o AutoCAD ocupado o pywin32 as vezes nao encontra o metodo e levanta
+    # AttributeError no lugar do com_error de "chamada rejeitada".
+    if isinstance(exc, AttributeError):
+        return True
     hresult = getattr(exc, "hresult", None)
     if hresult is None and getattr(exc, "args", None):
         try:
@@ -104,7 +131,7 @@ def _get_bounds(block_reference) -> Bounds:
 
 
 def _move_block(block_reference, dx: float, dy: float, dz: float, cancel_event) -> None:
-    _retry_com(lambda: block_reference.Move((0.0, 0.0, 0.0), (dx, dy, dz)), cancel_event)
+    _retry_com(lambda: block_reference.Move(_point(0.0, 0.0, 0.0), _point(dx, dy, dz)), cancel_event)
 
 
 def _regen(document, cancel_event) -> None:
@@ -115,7 +142,9 @@ def _try_set_variable(document, name: str, value, log: LogWriter, cancel_event) 
     try:
         _retry_com(lambda: document.SetVariable(name, value), cancel_event, 4)
     except Exception as exc:
-        log.warning(f"Nao foi possivel ajustar a variavel {name} para otimizar o AutoCAD: {exc}")
+        # Sao apenas otimizacoes: algumas variaveis sao somente leitura conforme
+        # a versao do AutoCAD e a uniao funciona do mesmo jeito.
+        log.info(f"Variavel {name} nao pode ser ajustada nesta versao do AutoCAD: {exc}")
 
 
 def _configure_fast_batch_mode(document, log: LogWriter, cancel_event) -> None:
@@ -165,9 +194,12 @@ def _ensure_insertable_dwg(acad, input_file: str, log: LogWriter, cancel_event) 
 
 def _insert_dwg_as_block(document, input_file: str, x: float, y: float, z: float, cancel_event):
     try:
-        return _retry_com(lambda: document.ModelSpace.InsertBlock((x, y, z), input_file, 1.0, 1.0, 1.0, 0.0), cancel_event)
+        return _retry_com(
+            lambda: document.ModelSpace.InsertBlock(_point(x, y, z), input_file, 1.0, 1.0, 1.0, 0.0),
+            cancel_event,
+        )
     except Exception as exc:
-        raise RuntimeError(f"O AutoCAD nao conseguiu inserir {Path(input_file).name} no arquivo final: {exc}") from exc
+        raise RuntimeError(f"O AutoCAD nao conseguiu inserir {Path(input_file).name}: {exc}") from exc
 
 
 def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter, preserve_layouts: bool, cancel_event=None) -> None:

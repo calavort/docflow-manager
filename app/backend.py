@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import re
 import os
 import subprocess
 import tempfile
@@ -262,12 +263,19 @@ class DocFlowBackend:
         }.get(operation, "A operação não foi concluída.")
         errors = [entry.message for entry in logs if getattr(entry, "level", "") == "error"]
         detail = cls._clean_log_message(errors[-1]) if errors else ""
-        if not detail:
+        if not cls._is_short_detail(detail):
             return lead
         # O detalhe ja pode ser uma frase completa; evita "Nao foi possivel" repetido.
         if detail.lower().startswith(("não foi possível", "nao foi possivel")):
             return detail
         return f"{lead} {detail}"
+
+    @staticmethod
+    def _is_short_detail(detail: str) -> bool:
+        """Detalhes tecnicos (codigos COM, textos longos) ficam so no log."""
+        if not detail or len(detail) > 110:
+            return False
+        return re.search(r"-?\d{7,}", detail) is None
 
     # ------------------------------------------------------------------
     # Respostas de estado
