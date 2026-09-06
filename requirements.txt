@@ -1,0 +1,3 @@
+pywebview==6.2.1
+pypdf>=5.0,<7.0
+pywin32>=306; platform_system == "Windows"

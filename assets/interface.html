@@ -1,0 +1,1199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="docflow_app_icon.png">
+<title>DocFlow Manager - Conceito V2</title>
+<style>
+:root{
+  --bg:#f3f2f1;
+  --panel:#ffffff;
+  --line:#e1dfdd;
+  --text:#323130;
+  --muted:#605e5c;
+  --blue:#176f9f;
+  --blue-hover:#105f89;
+  --blue-soft:#edf6fb;
+  --orange:#e87313;
+  --shadow:0 10px 28px rgba(0,0,0,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+body{display:block;padding:0}
+.window{
+  width:100vw;height:100vh;
+  background:var(--bg);
+  border:0;
+  box-shadow:none;
+  display:flex;flex-direction:column;
+}
+.header{
+  height:58px;background:#176f9f;color:white;
+  display:flex;align-items:center;padding:0 0 0 18px;
+  user-select:none;
+  flex:none;
+  position:relative;
+}
+.header-main{height:100%;display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding-right:112px;cursor:move}
+.logo{
+  width:28px;height:28px;background:rgba(255,255,255,.14);
+  display:grid;place-items:center;border-radius:0;flex:none
+}
+.logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.header h1{font-size:17px;margin:0;font-weight:600}
+.header small{display:block;font-size:11px;font-weight:400;opacity:.88;margin-top:2px}
+.window-controls{height:32px;display:flex;align-items:stretch;flex:none;position:absolute;right:0;top:0}
+.window-control{
+  width:36px;height:32px;border:0;border-radius:0;background:transparent;color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;opacity:.92
+}
+.window-control svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.window-control:hover{background:rgba(255,255,255,.13);opacity:1}
+.window-control.active{background:transparent;opacity:1}
+.window-control.active:hover{background:transparent}
+.window-control.close:hover{background:#c42b1c}
+.content{padding:16px;flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto}
+.section-title{
+  font-size:11px;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--muted);font-weight:700;margin:0 0 9px
+}
+.ops{display:grid;gap:8px;margin-bottom:16px}
+.op{
+  position:relative;background:var(--panel);border:1px solid var(--line);
+  min-height:58px;padding:9px 12px 9px 11px;
+  display:flex;align-items:center;gap:11px;cursor:pointer;
+  border-radius:3px;transition:.15s;
+}
+.op:before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent
+}
+.op:hover{border-color:#c8c6c4;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.op:hover:before{background:var(--orange)}
+.op.active{background:var(--blue-soft);border-color:#b8d8ea}
+.op.active:before{background:var(--blue)}
+.icon{
+  width:38px;height:38px;background:#f3f2f1;color:var(--blue);
+  border-radius:4px;display:grid;place-items:center;flex:none
+}
+.icon svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.op.active .icon{background:white}
+.op-info{flex:1;min-width:0}
+.op-title{font-size:14px;font-weight:600;margin-bottom:2px}
+.op-desc{font-size:11px;color:var(--muted)}
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:4px;
+  padding:14px;margin-bottom:14px
+}
+.grid3{display:grid;grid-template-columns:1.3fr 1.15fr .6fr;gap:9px}
+.sheet-range{display:grid;grid-template-columns:1fr 9px 1fr;align-items:center;gap:5px}
+.sheet-range input{text-align:center;padding:0 4px}
+.sheet-range-sep{font-size:12px;color:var(--muted);text-align:center;user-select:none}
+.field-hint{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.35}
+.alert{
+  display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding:8px 10px;
+  border:1px solid #f0d8a8;border-left:3px solid var(--orange);background:#fff8ec;
+  color:#6b4a12;font-size:11.5px;line-height:1.4;border-radius:3px
+}
+.alert svg{width:15px;height:15px;flex:none;margin-top:1px;stroke:var(--orange);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+label{font-size:11px;color:#4a4947;font-weight:600;display:block;margin-bottom:5px}
+input{
+  width:100%;height:32px;border:1px solid #c8c6c4;border-radius:2px;
+  padding:0 9px;font:12px "Segoe UI",Arial;background:white;outline:none
+}
+input:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.pattern-field{position:relative}
+.pattern-field input{padding-right:38px}
+.pattern-toggle{
+  position:absolute;right:1px;top:1px;width:32px;height:30px;border:0;border-left:1px solid #d8d8d8;
+  background:#fff;color:var(--blue);display:grid;place-items:center;padding:0;cursor:pointer
+}
+.pattern-toggle:hover,.pattern-toggle[aria-expanded="true"]{background:#f8fcfe}
+.pattern-toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pattern-menu{
+  position:absolute;right:0;top:36px;width:164px;background:#fff;border:1px solid #c8c6c4;
+  box-shadow:0 8px 18px rgba(0,0,0,.14);z-index:30;padding:8px
+}
+.check-option{
+  display:flex;align-items:center;gap:8px;margin:0;color:#323130;font:12px "Segoe UI",Arial;cursor:pointer
+}
+.check-option input{width:14px;height:14px;margin:0;accent-color:var(--blue);flex:none}
+.sep{border-top:1px solid #eee;margin:12px 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{
+  height:34px;border:1px solid #c8c6c4;background:white;border-radius:3px;
+  font:600 12px "Segoe UI";color:#323130;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px
+}
+.btn svg{width:17px;height:17px;stroke:var(--blue);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.btn:hover{background:#faf9f8;border-color:#a9a7a5}
+.btn:disabled{opacity:.6;cursor:default}
+.btn.primary{background:#176f9f;border-color:#176f9f;color:white}
+.btn.primary:hover{background:var(--blue-hover)}
+.btn.primary svg{stroke:#fff}
+.drop{
+  border:1px dashed #87b7d4;background:#f8fcfe;color:var(--blue);
+  min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:12px;border-radius:3px;margin-top:8px;user-select:none
+}
+.drop.drag-over{background:#edf6fb;border-color:var(--blue);box-shadow:inset 0 0 0 1px rgba(23,111,159,.16)}
+.drop svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.filetitle{font-size:11px;color:var(--muted);margin-top:10px}
+.filebox{
+  height:154px;min-height:78px;border:1px solid var(--line);background:#fff;margin-top:6px;
+  position:relative;display:flex;align-items:center;justify-content:center;
+  color:#8a8886;font-size:12px;overflow:hidden
+}
+.filebox.has-files{display:flex;align-items:stretch;justify-content:flex-start;flex-direction:column;color:var(--text)}
+.empty-state{display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty-state svg{width:24px;height:24px;stroke:var(--blue);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.file-rows{flex:1;min-height:0;overflow:auto}
+.file-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid #efefef;font-size:11.5px}
+.file-row:last-child{border-bottom:0}
+.file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-meta{color:var(--muted);font-size:10.5px;white-space:nowrap}
+.file-count{
+  position:absolute;right:10px;bottom:8px;font-size:10px;color:var(--muted)
+}
+.filebox.has-files .file-count{
+  position:static;display:flex;align-items:center;justify-content:flex-end;flex:none;
+  min-height:24px;border-top:1px solid #efefef;background:#fff;padding:4px 10px;text-align:right
+}
+.output-row{margin-bottom:14px}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:11px}
+.actions .btn{min-width:96px}
+.preview{
+  min-height:32px;border:1px solid #e5e5e5;background:#fafafa;border-radius:2px;
+  display:flex;align-items:center;padding:7px 9px;font-size:12px;color:#4a4947
+}
+.footer{font-size:10px;text-align:center;color:#605e5c;padding:0 0 11px}
+.hidden{display:none}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(8px);background:#fff;color:#323130;border:1px solid var(--line);border-left:3px solid var(--blue);padding:8px 11px;border-radius:3px;font-size:11px;opacity:0;pointer-events:none;transition:.18s;box-shadow:0 6px 14px rgba(0,0,0,.12);z-index:10001}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.loading-overlay,.result-overlay{position:fixed;inset:0;background:transparent;backdrop-filter:none;display:none;align-items:center;justify-content:center;z-index:9999}
+.loading-overlay.show,.result-overlay.show{display:flex}
+.loading-card,.result-card{width:338px;max-width:calc(100vw - 44px);background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);padding:21px 18px 16px;text-align:center}
+.spinner{width:34px;height:34px;border:3px solid #d9edf7;border-top-color:var(--blue);border-radius:50%;animation:spin .85s linear infinite;margin:0 auto 12px}
+.loading-title,.result-card h2{font-size:15px;font-weight:600;color:var(--text);margin:0 0 6px}
+.loading-text,.result-card p{font-size:12px;color:var(--muted);margin:0;line-height:1.45}
+.loading-op{font-weight:600;color:var(--blue)}
+.result-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:500px){
+  .grid3,.row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="header" id="htmlHeader">
+    <div class="header-main">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.4"/>
+          <path d="M14 3.5V8h4.5M8 12h8M8 15.5h8"/>
+        </svg>
+      </div>
+      <div>
+        <h1>DocFlow Manager</h1>
+        <small>Central de processamento de documentos técnicos</small>
+      </div>
+    </div>
+    <div class="window-controls" aria-label="Controles da janela">
+      <button class="window-control active" id="windowPin" type="button" aria-label="Manter na frente ativado" aria-pressed="true" title="Manter na frente ativado">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 3.8h7.6l-.8 5.4 3.4 3.4v2.1H5.6v-2.1L9 9.2l-.8-5.4Z"/><path d="M12 14.7v5.5"/></svg>
+      </button>
+      <button class="window-control" id="windowMinimize" type="button" aria-label="Minimizar" title="Minimizar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+      </button>
+      <button class="window-control close" id="windowClose" type="button" aria-label="Fechar" title="Fechar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="section-title">Operação</div>
+
+    <div class="ops">
+      <div class="op active" data-op="rename">
+        <div class="icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M13.1 3.3H6.8A1.9 1.9 0 0 0 4.9 5.2v9.5"/>
+            <path d="M13.1 3.3 18.4 8.6v9.9a1.9 1.9 0 0 1-1.9 1.9h-4.3"/>
+            <path d="M12.9 3.4v3.5a1.7 1.7 0 0 0 1.7 1.7h3.5"/>
+            <path d="M8.1 11.4h6.2"/>
+            <path d="M12.5 15.1a1.45 1.45 0 0 0-2.05-2.05l-4.87 4.87a1.6 1.6 0 0 0-.42.73l-.63 2.36 2.36-.63a1.6 1.6 0 0 0 .73-.42z"/>
+          </svg>
+        </div>
+        <div class="op-info">
+          <div class="op-title">Renomear</div>
+          <div class="op-desc">Padronizar nomes de documentos</div>
+        </div>
+      </div>
+
+      <div class="op" data-op="mergePdf">
+        <div class="icon">
+          <svg viewBox="0 0 24 24">
+            <rect x="3.2" y="3.7" width="6.6" height="6.6" rx="1.4"/>
+            <rect x="14.2" y="3.7" width="6.6" height="6.6" rx="1.4"/>
+            <path d="M6.5 10.3v1.5a2.1 2.1 0 0 0 2.1 2.1h6.8a2.1 2.1 0 0 0 2.1-2.1v-1.5"/>
+            <path d="M12 13.9v5.6"/>
+            <path d="M9.3 16.9 12 19.6l2.7-2.7"/>
+          </svg>
+        </div>
+        <div class="op-info">
+          <div class="op-title">Unir PDF</div>
+          <div class="op-desc">Combinar vários arquivos em um único PDF</div>
+        </div>
+      </div>
+
+      <div class="op" data-op="splitPdf">
+        <div class="icon">
+          <svg viewBox="0 0 24 24">
+            <rect x="8.2" y="3.4" width="7.6" height="6.8" rx="1.5"/>
+            <path d="M12 10.2v1.5"/>
+            <path d="M5.6 15.5v-1.7a2.1 2.1 0 0 1 2.1-2.1h8.6a2.1 2.1 0 0 1 2.1 2.1v1.7"/>
+            <path d="M5.6 15.5v4M3 17.5l2.6 2.6 2.6-2.6"/>
+            <path d="M18.4 15.5v4M15.8 17.5l2.6 2.6 2.6-2.6"/>
+          </svg>
+        </div>
+        <div class="op-info">
+          <div class="op-title">Separar PDF</div>
+          <div class="op-desc">Separar páginas em arquivos individuais</div>
+        </div>
+      </div>
+
+      <div class="op" data-op="mergeDwg">
+        <div class="icon">
+          <svg viewBox="0 0 24 24">
+            <rect x="2.9" y="4.4" width="11.2" height="9.4" rx="1.5"/>
+            <rect x="9.9" y="10.2" width="11.2" height="9.4" rx="1.5"/>
+            <path d="M17.6 19.6v-2.6h3.5"/>
+          </svg>
+        </div>
+        <div class="op-info">
+          <div class="op-title">Unir DWG</div>
+          <div class="op-desc">Combinar desenhos DWG em uma única operação</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Configuração da operação</div>
+
+    <div class="panel">
+      <div class="grid3">
+        <div><label for="codigo">Código do desenho</label><input id="codigo" value="IME-MC-1-43293"></div>
+        <div>
+          <label for="folhaInicial">Folha (inicial / final)</label>
+          <div class="sheet-range">
+            <input id="folhaInicial" inputmode="numeric" autocomplete="off" value="1" aria-label="Folha inicial" title="Folha inicial - a folha final e calculada pelo numero de arquivos">
+            <span class="sheet-range-sep" aria-hidden="true">-</span>
+            <input id="folhaFinal" inputmode="numeric" autocomplete="off" value="1" aria-label="Folha final" title="Folha final - a folha inicial e calculada pelo numero de arquivos">
+          </div>
+        </div>
+        <div><label for="revisao">Revisão</label><input id="revisao" value="0"></div>
+      </div>
+
+      <div class="field-hint" id="folhaHint">Digite a inicial ou a final · a outra é calculada pelo número de arquivos.</div>
+
+      <div class="sep"></div>
+
+      <label for="padrao">Padrão</label>
+      <div class="pattern-field" id="patternField">
+        <input id="padrao" placeholder="Definir padrão">
+        <button class="pattern-toggle" id="patternToggle" type="button" aria-label="Opções do padrão" aria-expanded="false" title="Opções do padrão">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+        </button>
+        <div class="pattern-menu hidden" id="patternMenu">
+          <label class="check-option">
+            <input type="checkbox" id="includeRevision" checked>
+            <span>Incluir revisão</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+
+      <label>Prévia do nome</label>
+      <div class="preview" id="preview">IME-MC-1-43293 FL1-1 Rev.0</div>
+    </div>
+
+    <div class="section-title">Saída</div>
+    <div class="row output-row">
+      <button class="btn" id="chooseOutput" type="button">
+        <svg viewBox="0 0 24 24">
+          <path d="M3.5 7.5h6l1.8 2H20.5v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>
+          <path d="M3.5 7.5V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1.5"/>
+          <path d="M12 12.5v5M9.5 15h5"/>
+        </svg>
+        Escolher saída
+      </button>
+
+      <button class="btn" id="openOutput" type="button">
+        <svg viewBox="0 0 24 24">
+          <path d="M3.5 7.5h6l1.8 2H20.5v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>
+          <path d="M3.5 7.5V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1.5"/>
+          <path d="M12.5 16.5l4-4M13.5 12.5h3v3"/>
+        </svg>
+        Abrir pasta de saída
+      </button>
+    </div>
+
+    <div class="section-title">Arquivos</div>
+
+    <button class="btn" id="selectFiles" type="button" style="width:100%">
+      <svg viewBox="0 0 24 24">
+        <path d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.4"/>
+        <path d="M14 3.5V8h4.5M12 11v6M9 14h6"/>
+      </svg>
+      Selecionar arquivos
+    </button>
+
+    <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Arraste arquivos para adicionar">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 16.5v2A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-2"/>
+        <path d="M12 4v10M8.5 7.5L12 4l3.5 3.5"/>
+      </svg>
+      Arraste arquivos aqui
+    </div>
+
+    <div class="alert hidden" id="mixWarning" role="status" aria-live="polite">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5 21 19.5H3z"/><path d="M12 10.2v3.6M12 16.8h.01"/></svg>
+      <span id="mixWarningText"></span>
+    </div>
+
+    <div class="filetitle">Lista de arquivos</div>
+    <div class="filebox" id="selectedList">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24">
+          <path d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.4"/>
+          <path d="M14 3.5V8h4.5"/>
+        </svg>
+        <span>Nenhum arquivo adicionado.</span>
+      </div>
+      <div class="file-count" id="selectedCount">0 arquivos</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="limparLista" type="button">Limpar lista</button>
+      <button class="btn primary" id="startBtn" type="button">Iniciar</button>
+    </div>
+  </div>
+
+  <div class="footer">Programa desenvolvido por Edflávio Calavort - 2026</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
+  <div class="loading-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="loading-title">Processando operação</p>
+    <p class="loading-text">Executando: <span class="loading-op" id="loadingOp">Renomear</span></p>
+  </div>
+</div>
+<div class="result-overlay" id="resultOverlay" aria-hidden="true">
+  <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <h2 id="resultTitle">Operação concluída</h2>
+    <p id="resultMessage">Processamento finalizado com sucesso. Os arquivos estão disponíveis na pasta de saída.</p>
+    <div class="result-actions">
+      <button type="button" class="btn" id="resultOk">OK</button>
+      <button type="button" class="btn primary" id="resultOpen">Abrir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = selector => document.querySelector(selector);
+const $$ = selector => Array.from(document.querySelectorAll(selector));
+const state = {
+  operation: "rename",
+  operationRunning: false,
+  pinned: true,
+  includeRevision: true,
+  files: [],
+  sheetAnchor: "start",
+  sheetTouched: false,
+  lastMixWarning: ""
+};
+
+const operationLabels = {
+  rename: "Renomear",
+  mergePdf: "Unir PDF",
+  splitPdf: "Separar PDF",
+  mergeDwg: "Unir DWG"
+};
+
+async function post(command, payload = {}) {
+  try {
+    const http = await fetch("/api", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ command, ...payload })
+    });
+    let response = null;
+    try {
+      response = await http.json();
+    } catch (_) {
+      throw new Error(`Falha de comunicação com o backend (HTTP ${http.status}).`);
+    }
+    if (!http.ok && !(response && response.type)) {
+      throw new Error(`Falha de comunicação com o backend (HTTP ${http.status}).`);
+    }
+    if (response && typeof response === "object") {
+      window.handleBackendMessage(response);
+    }
+    return response;
+  } catch (error) {
+    setOperationRunning(false);
+    const message = error && error.message ? error.message : String(error || "Falha de comunicação com o backend.");
+    toast(message);
+    return null;
+  }
+}
+
+function toast(message) {
+  const t = $("#toast");
+  t.textContent = message || "";
+  t.classList.add("show");
+  clearTimeout(window._docflowToastTimer);
+  window._docflowToastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+function showLoading(operation) {
+  $("#loadingOp").textContent = operationLabels[operation] || operation || "Operação";
+  $("#loadingOverlay").classList.add("show");
+  $("#loadingOverlay").setAttribute("aria-hidden", "false");
+}
+
+function hideLoading() {
+  $("#loadingOverlay").classList.remove("show");
+  $("#loadingOverlay").setAttribute("aria-hidden", "true");
+}
+
+function showResultDialog(message) {
+  $("#resultMessage").textContent = message || "Processamento finalizado com sucesso. Os arquivos estão disponíveis na pasta de saída.";
+  $("#resultOverlay").classList.add("show");
+  $("#resultOverlay").setAttribute("aria-hidden", "false");
+  $("#resultOk").focus();
+}
+
+function hideResultDialog() {
+  $("#resultOverlay").classList.remove("show");
+  $("#resultOverlay").setAttribute("aria-hidden", "true");
+}
+
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeRegExp(value) {
+  return String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function displayRevision(value) {
+  return clean(value).replace(/^rev\./i, "") || "0";
+}
+
+function normalizedRevision(value) {
+  const revision = displayRevision(value);
+  return revision.toLowerCase().startsWith("rev.") ? revision : `Rev.${revision}`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = Number(bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function sheetFileCount() {
+  return Math.max(1, state.files.length || 1);
+}
+
+function sheetFieldNumber(selector) {
+  const raw = clean($(selector).value);
+  if (!/^\d+$/.test(raw)) return null;
+  const value = Number(raw);
+  return value > 0 ? value : null;
+}
+
+// Faixa efetiva de folhas: o campo vazio e sempre deduzido do outro + quantidade de arquivos.
+function currentSheetRange() {
+  const count = sheetFileCount();
+  let start = sheetFieldNumber("#folhaInicial");
+  let total = sheetFieldNumber("#folhaFinal");
+  if (start === null && total === null) {
+    start = 1;
+    total = count;
+  } else if (start === null) {
+    start = Math.max(1, total - count + 1);
+  } else if (total === null) {
+    total = start + count - 1;
+  }
+  start = Math.max(1, start);
+  total = Math.max(start, total);
+  return { start, total, count };
+}
+
+// Recalcula instantaneamente o extremo oposto ao campo que o usuario esta editando.
+function syncSheetFields(anchor = state.sheetAnchor) {
+  const count = sheetFileCount();
+  if (anchor === "end") {
+    const total = sheetFieldNumber("#folhaFinal");
+    if (total === null) return;
+    $("#folhaInicial").value = String(Math.max(1, total - count + 1));
+  } else {
+    const start = sheetFieldNumber("#folhaInicial");
+    if (start === null) return;
+    $("#folhaFinal").value = String(start + count - 1);
+  }
+}
+
+function updateSheetHint() {
+  const total = state.files.length;
+  const countText = total ? `${total} ${total === 1 ? "arquivo" : "arquivos"}` : "1 arquivo";
+  const anchorText = state.sheetAnchor === "end" ? "final" : "inicial";
+  $("#folhaHint").textContent =
+    `Digite a inicial ou a final · a outra é calculada para ${countText} (base: folha ${anchorText}).`;
+}
+
+function handleSheetInput(selector, anchor) {
+  const input = $(selector);
+  const digits = input.value.replace(/\D+/g, "");
+  if (digits !== input.value) input.value = digits;
+  state.sheetAnchor = anchor;
+  state.sheetTouched = true;
+  syncSheetFields(anchor);
+  updateSheetHint();
+  updatePreview();
+  requestPreview();
+}
+
+function normalizeSheetField() {
+  const range = currentSheetRange();
+  $("#folhaInicial").value = String(range.start);
+  $("#folhaFinal").value = String(range.total);
+  updateSheetHint();
+  updatePreview();
+  requestPreview();
+}
+
+// ---------------------------------------------------------------- tipos de arquivo
+function fileTypeCounts() {
+  const counts = new Map();
+  state.files.forEach(file => {
+    const extension = String(file.extension || "ARQ").toUpperCase();
+    counts.set(extension, (counts.get(extension) || 0) + 1);
+  });
+  return counts;
+}
+
+function fileTypeSummary(counts) {
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([extension, count]) => `${count} ${extension}`)
+    .join(" + ");
+}
+
+function mixWarningMessage() {
+  if (!state.files.length) return "";
+  const counts = fileTypeCounts();
+  const summary = fileTypeSummary(counts);
+  const expected = { mergePdf: "PDF", splitPdf: "PDF", mergeDwg: "DWG" }[state.operation] || "";
+
+  if (expected) {
+    const ignored = state.files.filter(file => String(file.extension).toUpperCase() !== expected).length;
+    if (ignored > 0) {
+      return `${operationLabels[state.operation]} usa somente arquivos ${expected}: ${ignored} arquivo(s) de outro tipo serão ignorados (lista atual: ${summary}).`;
+    }
+    return "";
+  }
+
+  if (counts.size > 1) {
+    return `A lista mistura tipos de arquivo (${summary}). Renomear numera todos na mesma sequência de folhas - confira se é isso mesmo.`;
+  }
+  return "";
+}
+
+// O aviso de tipos diferentes tem prioridade sobre a confirmacao do backend.
+function showBackendToast(message) {
+  if (message.toast && !state.lastMixWarning) toast(message.toast);
+}
+
+function updateMixWarning(notify = false) {
+  const message = mixWarningMessage();
+  const box = $("#mixWarning");
+  $("#mixWarningText").textContent = message;
+  box.classList.toggle("hidden", !message);
+  if (message && notify && message !== state.lastMixWarning) toast(message);
+  state.lastMixWarning = message;
+}
+
+function manualPatternHasRevision(value) {
+  return /\{rev(?:isao)?\}/i.test(value) || /(^|[\s._-])rev\.?\s*[0-9a-z]+/i.test(value);
+}
+
+function shouldIncludeRevisionForManual(value) {
+  return Boolean(clean(value) && state.includeRevision && !manualPatternHasRevision(value));
+}
+
+function appendRevisionToManualName(value, sourcePattern) {
+  const name = clean(value);
+  if (!name || !shouldIncludeRevisionForManual(sourcePattern || name)) return name;
+  return `${name} ${normalizedRevision($("#revisao").value)}`;
+}
+
+function appendRevisionToManualPattern(value) {
+  const pattern = clean(value);
+  if (!pattern || !shouldIncludeRevisionForManual(pattern)) return pattern;
+  return `${pattern} {rev}`;
+}
+
+function buildAutomaticPattern() {
+  const code = clean($("#codigo").value) || "{codigo}";
+  if (!state.includeRevision) return `${code} FL{folha}-{total}`;
+  return `${code} FL{folha}-{total} ${normalizedRevision($("#revisao").value)}`;
+}
+
+function replaceNameTokens(value, sheetRange = currentSheetRange()) {
+  const code = clean($("#codigo").value) || "IME-MC-1-43293";
+  const revision = normalizedRevision($("#revisao").value);
+  const replacements = {
+    "{codigo}": code,
+    "{code}": code,
+    "{folha}": String(sheetRange.start),
+    "{sheet}": String(sheetRange.start),
+    "{total}": String(sheetRange.total),
+    "{rev}": revision,
+    "{revisao}": revision
+  };
+  let result = String(value || "");
+  Object.entries(replacements).forEach(([token, replacement]) => {
+    result = result.replace(new RegExp(escapeRegExp(token), "ig"), replacement);
+  });
+  return clean(result);
+}
+
+function baseOutputName(manualValue = clean($("#padrao").value)) {
+  const sheetRange = currentSheetRange();
+  const code = clean($("#codigo").value) || "IME-MC-1-43293";
+  const sheets = `FL${sheetRange.start}-${sheetRange.total}`;
+  const automaticName = state.includeRevision
+    ? `${code} ${sheets} ${normalizedRevision($("#revisao").value)}`
+    : `${code} ${sheets}`;
+  if (!manualValue) return replaceNameTokens(automaticName, sheetRange) || automaticName;
+  return appendRevisionToManualName(replaceNameTokens(manualValue, sheetRange), manualValue) || automaticName;
+}
+
+function withOperationExtension(baseName) {
+  const extension = {
+    mergePdf: ".pdf",
+    splitPdf: ".pdf",
+    mergeDwg: ".dwg"
+  }[state.operation] || "";
+  if (!extension || baseName.toLowerCase().endsWith(extension)) return baseName;
+  return baseName + extension;
+}
+
+function buildOutputPattern(manualValue) {
+  const automaticPattern = buildAutomaticPattern();
+  if (!manualValue || state.operation !== "rename") {
+    return automaticPattern;
+  }
+
+  const sheetRange = currentSheetRange();
+  let patternText = manualValue;
+  patternText = patternText.replace(new RegExp(`FL\\.?\\s*${escapeRegExp(String(sheetRange.start))}\\s*-\\s*${escapeRegExp(String(sheetRange.total))}`, "i"), "FL{folha}-{total}");
+  if (!patternText.includes("{folha}") && !patternText.includes("{sheet}")) {
+    patternText = `${patternText} FL{folha}-{total}`;
+  }
+  return appendRevisionToManualPattern(patternText);
+}
+
+function currentOptions(extra = {}) {
+  const manualValue = clean($("#padrao").value);
+  const outputFileName = state.operation === "rename" ? "" : baseOutputName(manualValue);
+  const sheetRange = currentSheetRange();
+  return {
+    operation: state.operation,
+    revision: $("#revisao").value,
+    sheetStart: sheetRange.start,
+    totalSheets: sheetRange.total,
+    splitIntervals: "",
+    outputPattern: buildOutputPattern(manualValue),
+    outputFileName,
+    generateLog: false,
+    preserveLayouts: false,
+    ...extra
+  };
+}
+
+function updatePreview() {
+  if (state.operation === "rename") {
+    $("#preview").textContent = baseOutputName();
+    return;
+  }
+  const outputName = withOperationExtension(baseOutputName());
+  $("#preview").textContent = state.operation === "splitPdf" ? `${outputName} / páginas separadas` : outputName;
+}
+
+function requestPreview() {
+  if (state.files.length === 0 || state.operation !== "rename") return;
+  post("generatePreview", {
+    operation: state.operation,
+    options: currentOptions()
+  });
+}
+
+function setOperation(operation) {
+  if (state.operationRunning) {
+    toast("Aguarde a operação atual terminar.");
+    return;
+  }
+
+  state.operation = operation;
+  $$(".op").forEach(item => {
+    item.classList.toggle("active", item.dataset.op === operation);
+  });
+
+  updateMixWarning(true);
+  updatePreview();
+  requestPreview();
+}
+
+function renderFiles(files = []) {
+  state.files = files;
+  const box = $("#selectedList");
+  const total = state.files.length;
+  const countText = `${total} ${total === 1 ? "arquivo" : "arquivos"}`;
+  if (!total) {
+    state.sheetAnchor = "start";
+    state.sheetTouched = false;
+  }
+  syncSheetFields();
+  updateSheetHint();
+  updateMixWarning(true);
+  box.classList.toggle("has-files", total > 0);
+  if (!total) {
+    box.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24">
+          <path d="M6 3.5h8l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.4"/>
+          <path d="M14 3.5V8h4.5"/>
+        </svg>
+        <span>Nenhum arquivo adicionado.</span>
+      </div>
+      <div class="file-count" id="selectedCount">${countText}</div>
+    `;
+    return;
+  }
+
+  const rows = state.files.map(file => `
+    <div class="file-row">
+      <span class="file-name" title="${escapeHtml(file.fullPath || file.name)}">${escapeHtml(file.name)}</span>
+      <span class="file-meta">${escapeHtml(file.extension || "ARQ")} · ${formatBytes(file.size)}</span>
+    </div>
+  `).join("");
+  box.innerHTML = `<div class="file-rows">${rows}</div><div class="file-count" id="selectedCount">${countText}</div>`;
+}
+
+function applyNamingSuggestion(suggestion, overwrite = true) {
+  if (!suggestion || (!suggestion.hasSuggestion && state.files.length === 0)) return;
+  const setValue = (selector, value) => {
+    const input = $(selector);
+    if (!input || value === undefined || value === null || value === "") return;
+    if (overwrite || clean(input.value) === "") {
+      input.value = value;
+    }
+  };
+
+  setValue("#codigo", suggestion.code);
+  setValue("#revisao", displayRevision(suggestion.revision || "0"));
+
+  // A folha digitada pelo usuario tem prioridade sobre a sugestao lida dos nomes.
+  const suggestedStart = Math.max(1, Number(suggestion.sheetStart || 1));
+  if ((overwrite && !state.sheetTouched) || clean($("#folhaInicial").value) === "") {
+    $("#folhaInicial").value = String(suggestedStart);
+    state.sheetAnchor = "start";
+  }
+  syncSheetFields();
+  updateSheetHint();
+  updatePreview();
+}
+
+function renderPreview(items) {
+  if (!items || !items.length) {
+    updatePreview();
+    return;
+  }
+  $("#preview").textContent = items[0].newName || "";
+}
+
+function validateBeforeStart() {
+  if (state.files.length === 0) {
+    toast("Selecione arquivos antes de iniciar.");
+    return false;
+  }
+
+  const pdfCount = state.files.filter(file => String(file.extension).toUpperCase() === "PDF").length;
+  const dwgCount = state.files.filter(file => String(file.extension).toUpperCase() === "DWG").length;
+  if (state.operation === "mergePdf" && pdfCount < 2) {
+    toast("Unir PDF precisa de pelo menos dois PDFs.");
+    return false;
+  }
+  if (state.operation === "splitPdf" && pdfCount === 0) {
+    toast("Separar PDF precisa de pelo menos um PDF.");
+    return false;
+  }
+  if (state.operation === "mergeDwg" && dwgCount < 2) {
+    toast("Unir DWG precisa de pelo menos dois DWGs.");
+    return false;
+  }
+
+  const mixMessage = mixWarningMessage();
+  if (mixMessage && !window.confirm(`${mixMessage}\n\nDeseja continuar mesmo assim?`)) {
+    return false;
+  }
+  return true;
+}
+
+function nextPaint() {
+  // Com a janela minimizada o requestAnimationFrame nao dispara; o timeout
+  // garante que a operacao comece mesmo assim.
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    requestAnimationFrame(finish);
+    setTimeout(finish, 120);
+  });
+}
+
+async function startOperation(overwriteConfirmed = false) {
+  if (state.operationRunning || !validateBeforeStart()) return;
+  setOperationRunning(true);
+  await nextPaint();
+  await post("startOperation", {
+    operation: state.operation,
+    options: currentOptions({ overwriteConfirmed })
+  });
+}
+
+function setOperationRunning(isRunning) {
+  state.operationRunning = isRunning;
+  $("#startBtn").disabled = isRunning;
+  $("#limparLista").disabled = isRunning;
+  $("#selectFiles").disabled = isRunning;
+  $$(".op").forEach(item => item.style.pointerEvents = isRunning ? "none" : "");
+  if (isRunning) {
+    showLoading(state.operation);
+  } else {
+    hideLoading();
+  }
+}
+
+function setPinState(enabled) {
+  state.pinned = Boolean(enabled);
+  const pin = $("#windowPin");
+  pin.classList.toggle("active", state.pinned);
+  pin.setAttribute("aria-pressed", String(state.pinned));
+  pin.setAttribute("aria-label", state.pinned ? "Manter na frente ativado" : "Manter na frente desativado");
+  pin.title = state.pinned ? "Manter na frente ativado" : "Manter na frente";
+}
+
+window.handleBackendMessage = function handleBackendMessage(message) {
+  switch (message.type) {
+    case "ready":
+    case "filesChanged":
+      renderFiles(message.files || []);
+      applyNamingSuggestion(message.namingSuggestion);
+      showBackendToast(message);
+      requestPreview();
+      break;
+    case "previewReady":
+      renderPreview(message.items);
+      break;
+    case "statusChanged":
+      applyNamingSuggestion(message.namingSuggestion, false);
+      showBackendToast(message);
+      break;
+    case "notice":
+    case "operationNotice":
+      if (state.operationRunning && message.level === "error") setOperationRunning(false);
+      toast(message.message || message.title || "Aviso");
+      break;
+    case "backendError":
+      setOperationRunning(false);
+      toast(message.message || "Falha no backend do programa.");
+      break;
+    case "cancelled":
+    case "ok":
+      break;
+    case "confirmationRequired": {
+      setOperationRunning(false);
+      const conflicts = (message.conflicts || []).slice(0, 4).join("\n");
+      if (window.confirm(`${message.message || "Existem arquivos com o mesmo nome na pasta de saída."}\n\n${conflicts}`)) {
+        startOperation(true);
+      }
+      break;
+    }
+    case "operationCompleted":
+      setOperationRunning(false);
+      if (Array.isArray(message.files)) renderFiles(message.files);
+      if (message.success) {
+        showResultDialog(message.message || "Operação concluída com sucesso. Os arquivos foram processados e estão disponíveis na pasta de saída.");
+      } else {
+        window.alert(message.message || "A operação não foi concluída.");
+      }
+      break;
+    default:
+      break;
+  }
+};
+
+function setPatternMenu(open) {
+  $("#patternMenu").classList.toggle("hidden", !open);
+  $("#patternToggle").setAttribute("aria-expanded", String(Boolean(open)));
+}
+
+$("#patternToggle").addEventListener("click", event => {
+  event.stopPropagation();
+  setPatternMenu($("#patternMenu").classList.contains("hidden"));
+});
+
+$("#patternMenu").addEventListener("click", event => event.stopPropagation());
+
+$("#includeRevision").addEventListener("change", () => {
+  state.includeRevision = $("#includeRevision").checked;
+  updatePreview();
+  requestPreview();
+});
+
+document.addEventListener("click", event => {
+  if (!$("#patternField").contains(event.target)) setPatternMenu(false);
+});
+
+["#codigo", "#revisao", "#padrao"].forEach(selector => {
+  $(selector).addEventListener("input", () => {
+    updatePreview();
+    requestPreview();
+  });
+});
+
+$("#folhaInicial").addEventListener("input", () => handleSheetInput("#folhaInicial", "start"));
+$("#folhaFinal").addEventListener("input", () => handleSheetInput("#folhaFinal", "end"));
+["#folhaInicial", "#folhaFinal"].forEach(selector => {
+  $(selector).addEventListener("blur", normalizeSheetField);
+  $(selector).addEventListener("focus", event => event.target.select());
+});
+
+$$(".op").forEach(op => {
+  op.addEventListener("click", () => setOperation(op.dataset.op));
+});
+
+$("#selectFiles").addEventListener("click", () => post("selectFiles", { operation: state.operation }));
+$("#chooseOutput").addEventListener("click", () => post("chooseOutputFolder"));
+$("#openOutput").addEventListener("click", () => post("openOutputFolder"));
+$("#limparLista").addEventListener("click", () => post("clearFiles"));
+$("#startBtn").addEventListener("click", () => startOperation(false));
+$("#resultOk").addEventListener("click", hideResultDialog);
+$("#resultOpen").addEventListener("click", () => {
+  hideResultDialog();
+  post("openOutputFolder");
+});
+$("#resultOverlay").addEventListener("click", event => {
+  if (event.target.id === "resultOverlay") hideResultDialog();
+});
+
+$("#windowPin").addEventListener("click", async () => {
+  const nextPinned = !state.pinned;
+  const response = await post("windowSetTopMost", { enabled: nextPinned });
+  if (response && response.type === "ok") {
+    setPinState(nextPinned);
+  }
+});
+$("#windowMinimize").addEventListener("click", () => post("windowMinimize"));
+$("#windowClose").addEventListener("click", () => post("windowClose"));
+
+function moveWindowTo(x, y) {
+  const nextX = Math.round(x);
+  const nextY = Math.round(y);
+  if (!Number.isFinite(nextX) || !Number.isFinite(nextY)) return;
+  fetch("/api", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ command: "windowMoveTo", x: nextX, y: nextY })
+  }).catch(() => {});
+}
+
+function startWindowDrag(event) {
+  if (event.button !== 0 || event.target.closest("button")) return;
+  event.preventDefault();
+
+  const dragSurface = $(".header-main");
+  const startClientX = event.clientX;
+  const startClientY = event.clientY;
+  let lastMove = null;
+  let framePending = false;
+
+  function flushMove() {
+    framePending = false;
+    if (!lastMove) return;
+    moveWindowTo(lastMove.x, lastMove.y);
+    lastMove = null;
+  }
+
+  function queueMove(pointerEvent) {
+    if (pointerEvent.pointerId !== event.pointerId || !(pointerEvent.buttons & 1)) return;
+    lastMove = {
+      x: pointerEvent.screenX - startClientX,
+      y: pointerEvent.screenY - startClientY
+    };
+    if (!framePending) {
+      framePending = true;
+      requestAnimationFrame(flushMove);
+    }
+  }
+
+  function stopDrag(pointerEvent) {
+    if (pointerEvent.pointerId !== event.pointerId) return;
+    window.removeEventListener("pointermove", queueMove, true);
+    window.removeEventListener("pointerup", stopDrag, true);
+    window.removeEventListener("pointercancel", stopDrag, true);
+    try {
+      dragSurface.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  try {
+    dragSurface.setPointerCapture(event.pointerId);
+  } catch (_) {}
+  window.addEventListener("pointermove", queueMove, true);
+  window.addEventListener("pointerup", stopDrag, true);
+  window.addEventListener("pointercancel", stopDrag, true);
+}
+
+$(".header-main").addEventListener("pointerdown", startWindowDrag);
+
+const dropZone = $("#dropZone");
+let dropConsumeTimer = null;
+
+function droppedFilePaths(event) {
+  const transfer = event && event.dataTransfer;
+  const files = transfer && transfer.files ? Array.from(transfer.files) : [];
+  const isAbsolutePath = value => /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value);
+  return files
+    .map(file => file && (file.pywebviewFullPath || file.fullPath || file.path || file.webkitRelativePath || ""))
+    .filter(path => path && isAbsolutePath(String(path)))
+    .map(path => String(path));
+}
+
+function setDropVisual(active) {
+  dropZone.classList.toggle("drag-over", Boolean(active));
+}
+
+async function consumeDroppedFiles(attempt = 0) {
+  const response = await post("consumeDroppedFiles");
+  if ((!response || response.type === "cancelled") && attempt < 12) {
+    clearTimeout(dropConsumeTimer);
+    dropConsumeTimer = setTimeout(() => consumeDroppedFiles(attempt + 1), 90 + attempt * 55);
+  }
+}
+
+function scheduleDropConsume(delay = 90) {
+  clearTimeout(dropConsumeTimer);
+  dropConsumeTimer = setTimeout(() => consumeDroppedFiles(0), delay);
+}
+
+function handleDropEvent(event, delay = 110) {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  const directPaths = droppedFilePaths(event);
+  if (directPaths.length) {
+    if (!event.docflowDropSent) {
+      event.docflowDropSent = true;
+      post("addDroppedFiles", { paths: directPaths });
+    }
+    return;
+  }
+  scheduleDropConsume(delay);
+}
+
+["dragenter", "dragover"].forEach(type => {
+  dropZone.addEventListener(type, event => {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    setDropVisual(true);
+  });
+});
+
+["dragleave", "dragend"].forEach(type => {
+  dropZone.addEventListener(type, event => {
+    event.preventDefault();
+    setDropVisual(false);
+  });
+});
+
+dropZone.addEventListener("drop", event => {
+  setDropVisual(false);
+  handleDropEvent(event, 90);
+});
+
+document.addEventListener("dragover", event => {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}, true);
+document.addEventListener("drop", event => {
+  setDropVisual(false);
+  handleDropEvent(event, 110);
+}, true);
+
+dropZone.addEventListener("click", () => post("selectFiles", { operation: state.operation }));
+dropZone.addEventListener("keydown", event => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    post("selectFiles", { operation: state.operation });
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("#patternMenu").classList.contains("hidden")) {
+    setPatternMenu(false);
+    return;
+  }
+  if (event.key === "Escape" && $("#resultOverlay").classList.contains("show")) {
+    hideResultDialog();
+  }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  post("ready");
+  setInterval(() => post("consumeDroppedFiles"), 900);
+});
+
+renderFiles([]);
+updatePreview();
+setPinState(true);
+</script>
+</body>
+</html>
