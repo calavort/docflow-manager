@@ -214,13 +214,6 @@ class DocFlowBackend:
             "message": self._operation_message(options.operation, result.success, result.cancelled, result.logs),
         }
 
-        skipped = self.operations.last_skipped_count
-        if result.success and skipped > 0:
-            response["message"] += (
-                " 1 arquivo de outro formato foi mantido sem alteração."
-                if skipped == 1
-                else f" {skipped} arquivos de outro formato foram mantidos sem alteração."
-            )
 
         if result.success:
             self.operations.clear_after_successful_operation()

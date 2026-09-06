@@ -671,10 +671,11 @@ function plural(count, singular, many) {
 }
 
 function fileTypeSummary(counts) {
-  return Array.from(counts.entries())
+  const parts = Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([extension, count]) => `${count} ${extension}`)
-    .join(" + ");
+    .map(([extension, count]) => `${count} ${extension}`);
+  if (parts.length < 2) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
 }
 
 // Texto curto mostrado no rodape da lista de arquivos.
@@ -690,7 +691,7 @@ function mixWarningMessage() {
   }
 
   if (counts.size > 1) {
-    return `A lista mistura tipos de arquivos (${fileTypeSummary(counts)})`;
+    return `A seleção contém arquivos de tipos distintos: ${fileTypeSummary(counts)}.`;
   }
   return "";
 }
@@ -698,25 +699,15 @@ function mixWarningMessage() {
 // Mensagem do card de confirmacao mostrado ao clicar em Iniciar.
 function mixConfirmMessage() {
   if (!state.files.length) return "";
-  const header = "Arquivos de formatos diferentes selecionados. Deseja continuar?";
+  const question = "Arquivos de formatos diferentes selecionados. Deseja continuar?";
   const expected = expectedExtension();
 
   if (expected) {
     const ignored = state.files.filter(file => String(file.extension).toUpperCase() !== expected).length;
-    if (!ignored) return "";
-    const ignoredText = ignored === 1
-      ? "1 arquivo de outro formato será ignorado."
-      : `${ignored} arquivos de outro formato serão ignorados.`;
-    return `${header}\n\n${operationLabels[state.operation]} usa somente arquivos ${expected}. ${ignoredText}`;
+    return ignored ? question : "";
   }
 
-  if (fileTypeCounts().size <= 1) return "";
-  const group = mainFileGroup();
-  const rest = state.files.length - group.count;
-  const keptText = rest === 1
-    ? "1 arquivo de outro formato será mantido como está."
-    : `${rest} arquivos de outro formato serão mantidos como estão.`;
-  return `${header}\n\nSerão renomeados apenas ${plural(group.count, "arquivo", "arquivos")} ${group.extension}. ${keptText}`;
+  return fileTypeCounts().size > 1 ? question : "";
 }
 
 function manualPatternHasRevision(value) {
@@ -921,22 +912,22 @@ function renderPreview(items) {
 
 async function validateBeforeStart() {
   if (state.files.length === 0) {
-    await alertDialog("Nenhum arquivo selecionado", "Adicione os arquivos antes de iniciar a operação.");
+    await alertDialog("Nenhum arquivo selecionado", "Adicione os arquivos antes de iniciar.");
     return false;
   }
 
   const pdfCount = state.files.filter(file => String(file.extension).toUpperCase() === "PDF").length;
   const dwgCount = state.files.filter(file => String(file.extension).toUpperCase() === "DWG").length;
   if (state.operation === "mergePdf" && pdfCount < 2) {
-    await alertDialog("Arquivos insuficientes", "Unir PDF precisa de pelo menos dois arquivos PDF na lista.");
+    await alertDialog("Arquivos insuficientes", "Unir PDF precisa de pelo menos dois arquivos PDF.");
     return false;
   }
   if (state.operation === "splitPdf" && pdfCount === 0) {
-    await alertDialog("Arquivos insuficientes", "Separar PDF precisa de pelo menos um arquivo PDF na lista.");
+    await alertDialog("Arquivos insuficientes", "Separar PDF precisa de pelo menos um arquivo PDF.");
     return false;
   }
   if (state.operation === "mergeDwg" && dwgCount < 2) {
-    await alertDialog("Arquivos insuficientes", "Unir DWG precisa de pelo menos dois arquivos DWG na lista.");
+    await alertDialog("Arquivos insuficientes", "Unir DWG precisa de pelo menos dois arquivos DWG.");
     return false;
   }
 

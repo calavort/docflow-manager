@@ -33,7 +33,6 @@ class FileOperationService:
         self.last_operation = "rename"
         self.last_output_folder: str | None = None
         self.output_folder: str | None = None
-        self.last_skipped_count = 0
 
     def add_files(self, paths) -> AddFilesResult:
         paths = [str(path) for path in paths]
@@ -195,7 +194,6 @@ class FileOperationService:
         os.makedirs(output_folder, exist_ok=True)
         self.last_output_files.clear()
         self.last_output_folder = output_folder
-        self.last_skipped_count = 0
         source_folders = {os.path.dirname(file.full_path) for file in self.files}
         try:
             conflict = self._detect_conflicts(options, output_folder)
@@ -303,9 +301,9 @@ class FileOperationService:
         preview = self.generate_rename_preview(options)
         if not preview:
             raise RuntimeError("Nenhum arquivo selecionado para renomear.")
-        self.last_skipped_count = len(self.files) - len(preview)
-        if self.last_skipped_count > 0:
-            log.warning(f"{self.last_skipped_count} arquivo(s) de outro formato mantidos sem alteracao.")
+        skipped = len(self.files) - len(preview)
+        if skipped > 0:
+            log.warning(f"{skipped} arquivo(s) de outro formato mantidos sem alteracao.")
         normalized_outputs = [os.path.normcase(os.path.abspath(item.output_path)) for item in preview]
         if len(normalized_outputs) != len(set(normalized_outputs)):
             raise RuntimeError("O padrao gerou nomes duplicados. Ajuste codigo, folha ou revisao antes de renomear.")

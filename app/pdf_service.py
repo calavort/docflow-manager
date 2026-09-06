@@ -21,10 +21,7 @@ def _open_pdf(input_file: str) -> PdfReader:
     try:
         return PdfReader(input_file)
     except Exception as exc:
-        raise RuntimeError(
-            f'Não foi possível ler o arquivo "{Path(input_file).name}". '
-            "Verifique se ele é um PDF válido e se não está protegido ou danificado."
-        ) from exc
+        raise RuntimeError(f'Não foi possível ler o arquivo "{Path(input_file).name}".') from exc
 
 
 def merge(input_files: list[str], output_path: str, cancel_event=None) -> None:
