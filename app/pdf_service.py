@@ -16,11 +16,22 @@ def _check_cancel(cancel_event) -> None:
         raise CancelledError()
 
 
+def _open_pdf(input_file: str) -> PdfReader:
+    """Abre o PDF traduzindo falhas de leitura em uma mensagem clara."""
+    try:
+        return PdfReader(input_file)
+    except Exception as exc:
+        raise RuntimeError(
+            f'Não foi possível ler o arquivo "{Path(input_file).name}". '
+            "Verifique se ele é um PDF válido e se não está protegido ou danificado."
+        ) from exc
+
+
 def merge(input_files: list[str], output_path: str, cancel_event=None) -> None:
     if not input_files:
         raise ValueError("Nenhum PDF informado para uniao.")
 
-    first_reader = PdfReader(input_files[0])
+    first_reader = _open_pdf(input_files[0])
     if not first_reader.pages:
         raise ValueError("O primeiro PDF nao possui paginas.")
     target_width = float(first_reader.pages[0].mediabox.width)
@@ -29,7 +40,7 @@ def merge(input_files: list[str], output_path: str, cancel_event=None) -> None:
     writer = PdfWriter()
     for input_file in input_files:
         _check_cancel(cancel_event)
-        reader = PdfReader(input_file)
+        reader = _open_pdf(input_file)
         for source_page in reader.pages:
             _check_cancel(cancel_event)
             source_width = float(source_page.mediabox.width)
@@ -89,7 +100,7 @@ def sanitize_file_name(value: str) -> str:
 
 
 def split(input_file: str, intervals_text: str, output_folder: str, overwrite: bool, cancel_event=None, output_base_name: str = "") -> list[str]:
-    reader = PdfReader(input_file)
+    reader = _open_pdf(input_file)
     intervals = parse_intervals(intervals_text, len(reader.pages))
     base_name = sanitize_file_name(output_base_name) if output_base_name.strip() else Path(input_file).stem
     outputs: list[str] = []

@@ -214,6 +214,14 @@ class DocFlowBackend:
             "message": self._operation_message(options.operation, result.success, result.cancelled, result.logs),
         }
 
+        skipped = self.operations.last_skipped_count
+        if result.success and skipped > 0:
+            response["message"] += (
+                " 1 arquivo de outro formato foi mantido sem alteração."
+                if skipped == 1
+                else f" {skipped} arquivos de outro formato foram mantidos sem alteração."
+            )
+
         if result.success:
             self.operations.clear_after_successful_operation()
             response["files"] = []
@@ -232,7 +240,17 @@ class DocFlowBackend:
         return self._notice("warning", "Cancelamento solicitado", "A operação será encerrada no próximo ponto seguro.")
 
     @staticmethod
-    def _operation_message(operation: str, success: bool, cancelled: bool, logs) -> str:
+    def _clean_log_message(message: str) -> str:
+        """Remove o horário do log: o card do programa mostra só a mensagem."""
+        text = str(message or "").strip()
+        if text.startswith("[") and "]" in text[:12]:
+            text = text.split("]", 1)[1].strip()
+        if text and not text.endswith((".", "!", "?")):
+            text += "."
+        return text
+
+    @classmethod
+    def _operation_message(cls, operation: str, success: bool, cancelled: bool, logs) -> str:
         if success:
             return {
                 "rename": "Renomeação concluída com sucesso.",
@@ -242,10 +260,21 @@ class DocFlowBackend:
             }.get(operation, "Operação realizada com sucesso.")
         if cancelled:
             return "Operação cancelada pelo usuário."
+
+        lead = {
+            "rename": "Não foi possível renomear os arquivos.",
+            "mergePdf": "Não foi possível unir os PDFs.",
+            "splitPdf": "Não foi possível separar o PDF.",
+            "mergeDwg": "Não foi possível unir os DWGs.",
+        }.get(operation, "A operação não foi concluída.")
         errors = [entry.message for entry in logs if getattr(entry, "level", "") == "error"]
-        if errors:
-            return errors[-1]
-        return "A operação não foi concluída."
+        detail = cls._clean_log_message(errors[-1]) if errors else ""
+        if not detail:
+            return lead
+        # O detalhe ja pode ser uma frase completa; evita "Nao foi possivel" repetido.
+        if detail.lower().startswith(("não foi possível", "nao foi possivel")):
+            return detail
+        return f"{lead} {detail}"
 
     # ------------------------------------------------------------------
     # Respostas de estado

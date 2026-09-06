@@ -39,6 +39,25 @@ def sys_platform() -> str:
     return sys.platform
 
 
+def notify_folder_change(folder: str) -> None:
+    """Avisa o Windows Explorer para atualizar a pasta na hora.
+
+    Sem isso a janela do Explorer pode continuar mostrando os nomes antigos por
+    um ou dois segundos depois que a operacao ja terminou.
+    """
+    if os.name != "nt" or not folder:
+        return
+    try:
+        path = os.path.abspath(folder)
+        if not os.path.isdir(path):
+            return
+        shcne_updatedir = 0x00001000
+        shcnf_pathw = 0x0005
+        ctypes.windll.shell32.SHChangeNotify(shcne_updatedir, shcnf_pathw, ctypes.c_wchar_p(path), None)
+    except Exception:
+        pass
+
+
 def hide_console_window() -> None:
     if os.name != "nt":
         return

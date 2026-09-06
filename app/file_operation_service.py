@@ -22,7 +22,7 @@ from .models import (
     SelectedFile,
 )
 from .pdf_service import CancelledError, merge as merge_pdf_files, parse_intervals, split as split_pdf_file
-from .utils import desktop_directory, natural_key
+from .utils import desktop_directory, natural_key, notify_folder_change
 
 
 class FileOperationService:
@@ -33,6 +33,7 @@ class FileOperationService:
         self.last_operation = "rename"
         self.last_output_folder: str | None = None
         self.output_folder: str | None = None
+        self.last_skipped_count = 0
 
     def add_files(self, paths) -> AddFilesResult:
         paths = [str(path) for path in paths]
@@ -129,13 +130,33 @@ class FileOperationService:
         revision = next((item.revision for item in detected if item.revision), "Rev.0")
         return NamingSuggestion(first_recognized.code, sheet_start, max(total_sheets, sheet_start), revision, first_recognized.recognized)
 
+    def rename_targets(self) -> list[SelectedFile]:
+        """Arquivos que a renomeacao vai processar.
+
+        Com formatos misturados na lista, so o formato mais numeroso e
+        renomeado: o arquivo avulso normalmente entrou por engano na selecao e
+        nao deve receber um numero da sequencia de folhas.
+        """
+        if not self.files:
+            return []
+        counts: dict[str, int] = {}
+        for file in self.files:
+            key = file.extension.upper()
+            counts[key] = counts.get(key, 0) + 1
+        if len(counts) <= 1:
+            return list(self.files)
+        first = self.files[0].extension.upper()
+        main = max(counts.items(), key=lambda item: (item[1], item[0] == first))[0]
+        return [file for file in self.files if file.extension.upper() == main]
+
     def generate_rename_preview(self, options: OperationOptions) -> list[RenamePreviewItem]:
-        detected = [file_name_recognizer.detect(file.name, index + 1) for index, file in enumerate(self.files)]
+        targets = self.rename_targets()
+        detected = [file_name_recognizer.detect(file.name, index + 1) for index, file in enumerate(targets)]
         detected_total = max((item.total_sheets for item in detected if item.total_sheets > 0), default=0)
         detected_max_sheet = max((item.sheet for item in detected if item.sheet > 0), default=0)
-        total_sheets = options.total_sheets if options.total_sheets > 0 else max(detected_total, detected_max_sheet, max(1, len(self.files)))
+        total_sheets = options.total_sheets if options.total_sheets > 0 else max(detected_total, detected_max_sheet, max(1, len(targets)))
         preview: list[RenamePreviewItem] = []
-        for index, file in enumerate(self.files):
+        for index, file in enumerate(targets):
             item = detected[index]
             sheet = options.sheet_start + index
             extension = Path(file.name).suffix
@@ -174,6 +195,8 @@ class FileOperationService:
         os.makedirs(output_folder, exist_ok=True)
         self.last_output_files.clear()
         self.last_output_folder = output_folder
+        self.last_skipped_count = 0
+        source_folders = {os.path.dirname(file.full_path) for file in self.files}
         try:
             conflict = self._detect_conflicts(options, output_folder)
             if conflict is not None:
@@ -193,6 +216,8 @@ class FileOperationService:
             log_file = log.save(output_folder, options.operation) if options.generate_log else ""
             if log_file:
                 self._wait_for_output_files_ready([log_file], cancel_event)
+            for folder in source_folders | {output_folder}:
+                notify_folder_change(folder)
             return OperationResult(True, output_folder=output_folder, log_file=log_file, output_files=list(self.last_output_files), logs=list(log.entries))
         except CancelledError:
             self.error_count += 1
@@ -214,14 +239,26 @@ class FileOperationService:
         if not pending:
             return
 
-        deadline = time.monotonic() + 8.0
+        deadline = time.monotonic() + 12.0
         last_state: dict[str, tuple[int, int]] = {}
         stable_since: dict[str, float] = {}
 
         while pending:
             self._check_cancel(cancel_event)
             now = time.monotonic()
+            listings: dict[str, set[str]] = {}
             for path in list(pending):
+                folder = os.path.dirname(path) or "."
+                if folder not in listings:
+                    try:
+                        listings[folder] = {entry.name.lower() for entry in os.scandir(folder)}
+                    except OSError:
+                        listings[folder] = set()
+                if os.path.basename(path).lower() not in listings[folder]:
+                    # o arquivo ainda nao aparece na listagem da pasta
+                    last_state.pop(path, None)
+                    stable_since.pop(path, None)
+                    continue
                 try:
                     stat = os.stat(path)
                     if stat.st_size <= 0:
@@ -266,6 +303,9 @@ class FileOperationService:
         preview = self.generate_rename_preview(options)
         if not preview:
             raise RuntimeError("Nenhum arquivo selecionado para renomear.")
+        self.last_skipped_count = len(self.files) - len(preview)
+        if self.last_skipped_count > 0:
+            log.warning(f"{self.last_skipped_count} arquivo(s) de outro formato mantidos sem alteracao.")
         normalized_outputs = [os.path.normcase(os.path.abspath(item.output_path)) for item in preview]
         if len(normalized_outputs) != len(set(normalized_outputs)):
             raise RuntimeError("O padrao gerou nomes duplicados. Ajuste codigo, folha ou revisao antes de renomear.")

@@ -91,9 +91,9 @@ body{display:block;padding:0}
 .sheet-range-sep{font-size:12px;color:var(--muted);text-align:center;user-select:none}
 .field-hint{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.35}
 .alert{
-  display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding:8px 10px;
-  border:1px solid #f0d8a8;border-left:3px solid var(--orange);background:#fff8ec;
-  color:#6b4a12;font-size:11.5px;line-height:1.4;border-radius:3px
+  display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding:9px 11px;
+  border:1px solid #f0d8a8;background:#fff8ec;
+  color:#6b4a12;font-size:11.5px;line-height:1.4;border-radius:4px
 }
 .alert svg{width:15px;height:15px;flex:none;margin-top:1px;stroke:var(--orange);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 label{font-size:11px;color:#4a4947;font-weight:600;display:block;margin-bottom:5px}
@@ -168,16 +168,25 @@ input:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 }
 .footer{font-size:10px;text-align:center;color:#605e5c;padding:0 0 11px}
 .hidden{display:none}
-.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(8px);background:#fff;color:#323130;border:1px solid var(--line);border-left:3px solid var(--blue);padding:8px 11px;border-radius:3px;font-size:11px;opacity:0;pointer-events:none;transition:.18s;box-shadow:0 6px 14px rgba(0,0,0,.12);z-index:10001}
+.toast{
+  position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-6px);
+  background:#fff;color:var(--text);border:1px solid var(--line);padding:9px 14px;border-radius:4px;
+  font-size:11.5px;opacity:0;pointer-events:none;transition:.18s;box-shadow:0 6px 16px rgba(0,0,0,.14);
+  z-index:10001;max-width:calc(100% - 44px);text-align:center
+}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.loading-overlay,.result-overlay{position:fixed;inset:0;background:transparent;backdrop-filter:none;display:none;align-items:center;justify-content:center;z-index:9999}
-.loading-overlay.show,.result-overlay.show{display:flex}
-.loading-card,.result-card{width:338px;max-width:calc(100vw - 44px);background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);padding:21px 18px 16px;text-align:center}
+.loading-overlay,.modal-overlay{position:fixed;inset:0;background:rgba(50,49,48,.16);display:none;align-items:center;justify-content:center;z-index:9999}
+.loading-overlay.show,.modal-overlay.show{display:flex}
+.loading-card,.modal-card{width:342px;max-width:calc(100vw - 44px);background:#fff;border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow);padding:21px 20px 17px}
+.loading-card{text-align:center}
+.modal-card h2{font-size:15px;font-weight:600;color:var(--text);margin:0 0 8px}
+.modal-card p{font-size:12px;color:var(--muted);margin:0;line-height:1.5;white-space:pre-line}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.modal-actions .btn{min-width:104px}
 .spinner{width:34px;height:34px;border:3px solid #d9edf7;border-top-color:var(--blue);border-radius:50%;animation:spin .85s linear infinite;margin:0 auto 12px}
-.loading-title,.result-card h2{font-size:15px;font-weight:600;color:var(--text);margin:0 0 6px}
-.loading-text,.result-card p{font-size:12px;color:var(--muted);margin:0;line-height:1.45}
+.loading-title{font-size:15px;font-weight:600;color:var(--text);margin:0 0 6px}
+.loading-text{font-size:12px;color:var(--muted);margin:0;line-height:1.45}
 .loading-op{font-weight:600;color:var(--blue)}
-.result-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:500px){
   .grid3,.row{grid-template-columns:1fr}
@@ -392,14 +401,11 @@ input:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
     <p class="loading-text">Executando: <span class="loading-op" id="loadingOp">Renomear</span></p>
   </div>
 </div>
-<div class="result-overlay" id="resultOverlay" aria-hidden="true">
-  <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
-    <h2 id="resultTitle">Operação concluída</h2>
-    <p id="resultMessage">Processamento finalizado com sucesso. Os arquivos estão disponíveis na pasta de saída.</p>
-    <div class="result-actions">
-      <button type="button" class="btn" id="resultOk">OK</button>
-      <button type="button" class="btn primary" id="resultOpen">Abrir</button>
-    </div>
+<div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
+    <h2 id="modalTitle"></h2>
+    <p id="modalMessage"></p>
+    <div class="modal-actions" id="modalActions"></div>
   </div>
 </div>
 
@@ -413,8 +419,7 @@ const state = {
   includeRevision: true,
   files: [],
   sheetAnchor: "start",
-  sheetTouched: false,
-  lastMixWarning: ""
+  sheetTouched: false
 };
 
 const operationLabels = {
@@ -448,7 +453,8 @@ async function post(command, payload = {}) {
   } catch (error) {
     setOperationRunning(false);
     const message = error && error.message ? error.message : String(error || "Falha de comunicação com o backend.");
-    toast(message);
+    // A checagem periodica de arrastar-e-soltar nao deve abrir card a cada tentativa.
+    if (command !== "consumeDroppedFiles") alertDialog("Falha de comunicação", message);
     return null;
   }
 }
@@ -472,16 +478,64 @@ function hideLoading() {
   $("#loadingOverlay").setAttribute("aria-hidden", "true");
 }
 
-function showResultDialog(message) {
-  $("#resultMessage").textContent = message || "Processamento finalizado com sucesso. Os arquivos estão disponíveis na pasta de saída.";
-  $("#resultOverlay").classList.add("show");
-  $("#resultOverlay").setAttribute("aria-hidden", "false");
-  $("#resultOk").focus();
+// Todas as mensagens do programa usam este card central.
+let dialogResolve = null;
+
+function showDialog(title, message, buttons) {
+  const overlay = $("#modalOverlay");
+  const actions = $("#modalActions");
+  if (dialogResolve) closeDialog(undefined);
+  $("#modalTitle").textContent = title || "";
+  $("#modalMessage").textContent = message || "";
+  actions.innerHTML = "";
+  (buttons || [{ label: "OK", value: true, primary: true }]).forEach(button => {
+    const element = document.createElement("button");
+    element.type = "button";
+    element.className = button.primary ? "btn primary" : "btn";
+    element.textContent = button.label;
+    element.addEventListener("click", () => closeDialog(button.value));
+    actions.appendChild(element);
+  });
+  overlay.classList.add("show");
+  overlay.setAttribute("aria-hidden", "false");
+  const focusTarget = actions.querySelector(".primary") || actions.firstElementChild;
+  if (focusTarget) focusTarget.focus();
+  return new Promise(resolve => {
+    dialogResolve = resolve;
+  });
 }
 
-function hideResultDialog() {
-  $("#resultOverlay").classList.remove("show");
-  $("#resultOverlay").setAttribute("aria-hidden", "true");
+function closeDialog(value) {
+  const overlay = $("#modalOverlay");
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  const resolve = dialogResolve;
+  dialogResolve = null;
+  if (resolve) resolve(value);
+}
+
+function dialogIsOpen() {
+  return $("#modalOverlay").classList.contains("show");
+}
+
+function alertDialog(title, message) {
+  return showDialog(title, message, [{ label: "OK", value: true, primary: true }]);
+}
+
+function confirmDialog(title, message, confirmLabel = "Continuar") {
+  return showDialog(title, message, [
+    { label: "Cancelar", value: false },
+    { label: confirmLabel, value: true, primary: true }
+  ]);
+}
+
+async function showSuccessDialog(message) {
+  const choice = await showDialog(
+    "Operação concluída",
+    message || "Processamento finalizado com sucesso. Os arquivos estão disponíveis na pasta de saída.",
+    [{ label: "OK", value: "ok" }, { label: "Abrir pasta", value: "open", primary: true }]
+  );
+  if (choice === "open") post("openOutputFolder");
 }
 
 function clean(value) {
@@ -522,8 +576,38 @@ function formatBytes(bytes) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+// Formato majoritario da lista: com formatos misturados, a renomeacao usa
+// apenas esse grupo (o arquivo avulso costuma ser engano na selecao).
+function mainFileGroup() {
+  const counts = fileTypeCounts();
+  const first = String((state.files[0] || {}).extension || "").toUpperCase();
+  let extension = first;
+  let count = 0;
+  counts.forEach((value, key) => {
+    if (value > count || (value === count && key === first)) {
+      count = value;
+      extension = key;
+    }
+  });
+  return { extension, count };
+}
+
+function expectedExtension() {
+  return { mergePdf: "PDF", splitPdf: "PDF", mergeDwg: "DWG" }[state.operation] || "";
+}
+
+// Quantos arquivos a operacao atual realmente vai processar.
+function operationFileCount() {
+  if (!state.files.length) return 1;
+  const expected = expectedExtension();
+  if (expected) {
+    return Math.max(1, state.files.filter(file => String(file.extension).toUpperCase() === expected).length);
+  }
+  return Math.max(1, mainFileGroup().count);
+}
+
 function sheetFileCount() {
-  return Math.max(1, state.files.length || 1);
+  return operationFileCount();
 }
 
 function sheetFieldNumber(selector) {
@@ -566,7 +650,7 @@ function syncSheetFields(anchor = state.sheetAnchor) {
 }
 
 function updateSheetHint() {
-  const total = state.files.length;
+  const total = state.files.length ? operationFileCount() : 0;
   const countText = total ? `${total} ${total === 1 ? "arquivo" : "arquivos"}` : "1 arquivo";
   const anchorText = state.sheetAnchor === "end" ? "final" : "inicial";
   $("#folhaHint").textContent =
@@ -604,6 +688,10 @@ function fileTypeCounts() {
   return counts;
 }
 
+function plural(count, singular, many) {
+  return `${count} ${count === 1 ? singular : many}`;
+}
+
 function fileTypeSummary(counts) {
   return Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -615,34 +703,55 @@ function mixWarningMessage() {
   if (!state.files.length) return "";
   const counts = fileTypeCounts();
   const summary = fileTypeSummary(counts);
-  const expected = { mergePdf: "PDF", splitPdf: "PDF", mergeDwg: "DWG" }[state.operation] || "";
+  const expected = expectedExtension();
 
   if (expected) {
     const ignored = state.files.filter(file => String(file.extension).toUpperCase() !== expected).length;
     if (ignored > 0) {
-      return `${operationLabels[state.operation]} usa somente arquivos ${expected}: ${ignored} arquivo(s) de outro tipo serão ignorados (lista atual: ${summary}).`;
+      return `${operationLabels[state.operation]} usa somente arquivos ${expected} (lista atual: ${summary}).`;
     }
     return "";
   }
 
   if (counts.size > 1) {
-    return `A lista mistura tipos de arquivo (${summary}). Renomear numera todos na mesma sequência de folhas - confira se é isso mesmo.`;
+    return `A lista mistura tipos de arquivo (${summary}).`;
   }
   return "";
 }
 
-// O aviso de tipos diferentes tem prioridade sobre a confirmacao do backend.
-function showBackendToast(message) {
-  if (message.toast && !state.lastMixWarning) toast(message.toast);
+// Mensagem do card de confirmacao mostrado ao clicar em Iniciar.
+function mixConfirmMessage() {
+  if (!state.files.length) return "";
+  const header = "Arquivos de formatos diferentes selecionados. Deseja continuar?";
+  const expected = expectedExtension();
+
+  if (expected) {
+    const ignored = state.files.filter(file => String(file.extension).toUpperCase() !== expected).length;
+    if (!ignored) return "";
+    const ignoredText = ignored === 1
+      ? "1 arquivo de outro formato será ignorado."
+      : `${ignored} arquivos de outro formato serão ignorados.`;
+    return `${header}\n\n${operationLabels[state.operation]} usa somente arquivos ${expected}. ${ignoredText}`;
+  }
+
+  if (fileTypeCounts().size <= 1) return "";
+  const group = mainFileGroup();
+  const rest = state.files.length - group.count;
+  const keptText = rest === 1
+    ? "1 arquivo de outro formato será mantido como está."
+    : `${rest} arquivos de outro formato serão mantidos como estão.`;
+  return `${header}\n\nSerão renomeados apenas ${plural(group.count, "arquivo", "arquivos")} ${group.extension}. ${keptText}`;
 }
 
-function updateMixWarning(notify = false) {
+function showBackendToast(message) {
+  if (message.toast) toast(message.toast);
+}
+
+function updateMixWarning() {
   const message = mixWarningMessage();
   const box = $("#mixWarning");
   $("#mixWarningText").textContent = message;
   box.classList.toggle("hidden", !message);
-  if (message && notify && message !== state.lastMixWarning) toast(message);
-  state.lastMixWarning = message;
 }
 
 function manualPatternHasRevision(value) {
@@ -762,17 +871,14 @@ function requestPreview() {
 }
 
 function setOperation(operation) {
-  if (state.operationRunning) {
-    toast("Aguarde a operação atual terminar.");
-    return;
-  }
+  if (state.operationRunning) return;
 
   state.operation = operation;
   $$(".op").forEach(item => {
     item.classList.toggle("active", item.dataset.op === operation);
   });
 
-  updateMixWarning(true);
+  updateMixWarning();
   updatePreview();
   requestPreview();
 }
@@ -788,7 +894,7 @@ function renderFiles(files = []) {
   }
   syncSheetFields();
   updateSheetHint();
-  updateMixWarning(true);
+  updateMixWarning();
   box.classList.toggle("has-files", total > 0);
   if (!total) {
     box.innerHTML = `
@@ -845,31 +951,29 @@ function renderPreview(items) {
   $("#preview").textContent = items[0].newName || "";
 }
 
-function validateBeforeStart() {
+async function validateBeforeStart() {
   if (state.files.length === 0) {
-    toast("Selecione arquivos antes de iniciar.");
+    await alertDialog("Nenhum arquivo selecionado", "Adicione os arquivos antes de iniciar a operação.");
     return false;
   }
 
   const pdfCount = state.files.filter(file => String(file.extension).toUpperCase() === "PDF").length;
   const dwgCount = state.files.filter(file => String(file.extension).toUpperCase() === "DWG").length;
   if (state.operation === "mergePdf" && pdfCount < 2) {
-    toast("Unir PDF precisa de pelo menos dois PDFs.");
+    await alertDialog("Arquivos insuficientes", "Unir PDF precisa de pelo menos dois arquivos PDF na lista.");
     return false;
   }
   if (state.operation === "splitPdf" && pdfCount === 0) {
-    toast("Separar PDF precisa de pelo menos um PDF.");
+    await alertDialog("Arquivos insuficientes", "Separar PDF precisa de pelo menos um arquivo PDF na lista.");
     return false;
   }
   if (state.operation === "mergeDwg" && dwgCount < 2) {
-    toast("Unir DWG precisa de pelo menos dois DWGs.");
+    await alertDialog("Arquivos insuficientes", "Unir DWG precisa de pelo menos dois arquivos DWG na lista.");
     return false;
   }
 
-  const mixMessage = mixWarningMessage();
-  if (mixMessage && !window.confirm(`${mixMessage}\n\nDeseja continuar mesmo assim?`)) {
-    return false;
-  }
+  const mixMessage = mixConfirmMessage();
+  if (mixMessage) return confirmDialog("Formatos diferentes", mixMessage);
   return true;
 }
 
@@ -889,7 +993,9 @@ function nextPaint() {
 }
 
 async function startOperation(overwriteConfirmed = false) {
-  if (state.operationRunning || !validateBeforeStart()) return;
+  if (state.operationRunning) return;
+  // A confirmacao de sobrescrita ja passou pelas validacoes na primeira tentativa.
+  if (!overwriteConfirmed && !(await validateBeforeStart())) return;
   setOperationRunning(true);
   await nextPaint();
   await post("startOperation", {
@@ -938,31 +1044,40 @@ window.handleBackendMessage = function handleBackendMessage(message) {
       break;
     case "notice":
     case "operationNotice":
-      if (state.operationRunning && message.level === "error") setOperationRunning(false);
-      toast(message.message || message.title || "Aviso");
+      if (message.level === "error") {
+        setOperationRunning(false);
+        alertDialog(message.title || "Operação não concluída", message.message || "A operação não foi concluída.");
+      } else {
+        toast(message.message || message.title || "Aviso");
+      }
       break;
     case "backendError":
       setOperationRunning(false);
-      toast(message.message || "Falha no backend do programa.");
+      alertDialog("Operação não concluída", message.message || "Falha no backend do programa.");
       break;
     case "cancelled":
     case "ok":
       break;
     case "confirmationRequired": {
       setOperationRunning(false);
-      const conflicts = (message.conflicts || []).slice(0, 4).join("\n");
-      if (window.confirm(`${message.message || "Existem arquivos com o mesmo nome na pasta de saída."}\n\n${conflicts}`)) {
-        startOperation(true);
-      }
+      const conflicts = (message.conflicts || []).slice(0, 4).map(path => path.split(/[\\/]/).pop());
+      const detail = conflicts.length ? `\n\n${conflicts.join("\n")}` : "";
+      confirmDialog(
+        message.title || "Confirmar sobrescrita",
+        `${message.message || "Existem arquivos com o mesmo nome na pasta de saída."}${detail}`,
+        "Sobrescrever"
+      ).then(confirmed => {
+        if (confirmed) startOperation(true);
+      });
       break;
     }
     case "operationCompleted":
       setOperationRunning(false);
       if (Array.isArray(message.files)) renderFiles(message.files);
       if (message.success) {
-        showResultDialog(message.message || "Operação concluída com sucesso. Os arquivos foram processados e estão disponíveis na pasta de saída.");
+        showSuccessDialog(message.message);
       } else {
-        window.alert(message.message || "A operação não foi concluída.");
+        alertDialog("Operação não concluída", message.message || "A operação não foi concluída.");
       }
       break;
     default:
@@ -1015,15 +1130,6 @@ $("#chooseOutput").addEventListener("click", () => post("chooseOutputFolder"));
 $("#openOutput").addEventListener("click", () => post("openOutputFolder"));
 $("#limparLista").addEventListener("click", () => post("clearFiles"));
 $("#startBtn").addEventListener("click", () => startOperation(false));
-$("#resultOk").addEventListener("click", hideResultDialog);
-$("#resultOpen").addEventListener("click", () => {
-  hideResultDialog();
-  post("openOutputFolder");
-});
-$("#resultOverlay").addEventListener("click", event => {
-  if (event.target.id === "resultOverlay") hideResultDialog();
-});
-
 $("#windowPin").addEventListener("click", async () => {
   const nextPinned = !state.pinned;
   const response = await post("windowSetTopMost", { enabled: nextPinned });
@@ -1177,13 +1283,12 @@ dropZone.addEventListener("keydown", event => {
 });
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !$("#patternMenu").classList.contains("hidden")) {
+  if (event.key !== "Escape") return;
+  if (!$("#patternMenu").classList.contains("hidden")) {
     setPatternMenu(false);
     return;
   }
-  if (event.key === "Escape" && $("#resultOverlay").classList.contains("show")) {
-    hideResultDialog();
-  }
+  if (dialogIsOpen()) closeDialog(false);
 });
 
 window.addEventListener("DOMContentLoaded", () => {
