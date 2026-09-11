@@ -21,10 +21,12 @@
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
 body{display:block;padding:0}
+/* Contorno de 1px: a janela é sem moldura e sem esse traço ela se funde
+   com o que estiver atrás dela. */
 .window{
   width:100vw;height:100vh;
   background:var(--bg);
-  border:0;
+  border:1px solid #b4b2b0;
   box-shadow:none;
   display:flex;flex-direction:column;
 }
@@ -72,9 +74,6 @@ body{display:block;padding:0}
   min-height:28px;border:1px solid #e5e5e5;background:#fafafa;border-radius:2px;
   display:flex;align-items:center;padding:5px 9px;font-size:12px;color:#4a4947
 }
-.update-note{font-size:11px;color:var(--muted);line-height:1.5;margin:0}
-.update-note + .update-note{margin-top:7px}
-.update-note b{color:#4a4947;font-weight:600}
 .section-title{
   font-size:11px;text-transform:uppercase;letter-spacing:.7px;
   color:var(--muted);font-weight:700;margin:0 0 6px
@@ -106,7 +105,8 @@ body{display:block;padding:0}
   background:var(--panel);border:1px solid var(--line);border-radius:4px;
   padding:11px;margin-bottom:10px
 }
-.grid3{display:grid;grid-template-columns:1.3fr 1.15fr .6fr;gap:9px}
+/* A revisão guarda 1 ou 2 caracteres; a sobra vai para o código do desenho. */
+.grid3{display:grid;grid-template-columns:1.5fr 1.15fr .45fr;gap:9px}
 .sheet-range{display:grid;grid-template-columns:1fr 9px 1fr;align-items:center;gap:5px}
 .sheet-range input{text-align:center;padding:0 4px}
 .sheet-range-sep{font-size:12px;color:var(--muted);text-align:center;user-select:none}
@@ -177,6 +177,23 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
   font-size:12px;border-radius:3px;user-select:none;cursor:pointer
 }
 .drop.drag-over{background:#edf6fb;border-color:var(--blue);box-shadow:inset 0 0 0 1px rgba(23,111,159,.16)}
+/* O Windows desenha o ícone do arrasto por cima da janela e ele cobre a
+   faixa de soltura. Esta camada dá um alvo que o ícone não esconde, e
+   soltar em qualquer ponto dela vale. */
+.drop-overlay{
+  position:fixed;inset:0;z-index:9000;display:none;
+  align-items:center;justify-content:center;padding:22px;
+  background:rgba(243,242,241,.82)
+}
+.drop-overlay.show{display:flex}
+.drop-overlay-card{
+  width:100%;height:100%;border:2px dashed var(--blue);border-radius:4px;
+  background:#f8fcfe;color:var(--blue);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px
+}
+.drop-overlay-card svg{width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.drop-overlay-title{font-size:16px;font-weight:600}
+.drop-overlay-hint{font-size:12px;color:var(--muted)}
 .drop svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
 .filetitle{font-size:11px;color:var(--muted);margin-top:7px}
 .filebox{
@@ -511,19 +528,22 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
         </div>
         <div class="update-status" id="updateStatus">Aguardando verificação.</div>
       </div>
-
-      <div class="section-title">Como funciona</div>
-      <div class="panel">
-        <p class="update-note">O programa procura uma versão nova ao abrir e sempre que você clicar em <b>Verificar</b>. Sem internet, nada muda: o DocFlow continua funcionando normalmente.</p>
-        <p class="update-note">O download é conferido por assinatura <b>SHA-256</b> antes de qualquer troca de arquivo, e a instalação só começa depois que você confirmar a reinicialização.</p>
-        <p class="update-note">Se algo falhar no meio da troca, a abertura seguinte devolve a versão anterior sozinha. Seus arquivos e pastas de saída nunca são tocados.</p>
-      </div>
     </div>
   </div>
 
   <div class="footer">Programa desenvolvido por Edflávio Calavort - 2026</div>
 </div>
 
+<div class="drop-overlay" id="dropOverlay" aria-hidden="true">
+  <div class="drop-overlay-card">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 16.5v2A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-2"/>
+      <path d="M12 4v10M8.5 7.5L12 4l3.5 3.5"/>
+    </svg>
+    <div class="drop-overlay-title">Solte os arquivos aqui</div>
+    <div class="drop-overlay-hint">PDF e DWG · pode soltar em qualquer ponto da janela</div>
+  </div>
+</div>
 <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
   <div class="loading-card">
     <div class="spinner" aria-hidden="true"></div>
@@ -1724,6 +1744,23 @@ function setDropVisual(active) {
   dropZone.classList.toggle("drag-over", Boolean(active));
 }
 
+// O arrasto entra e sai de cada elemento sob o cursor; a contagem evita que
+// a camada pisque ao passar de um elemento para outro dentro da janela.
+let dragDepth = 0;
+
+function dragHasFiles(event) {
+  const types = event.dataTransfer && event.dataTransfer.types;
+  return Boolean(types && Array.from(types).includes("Files"));
+}
+
+function showDropOverlay(visible) {
+  if (!visible) dragDepth = 0;
+  const overlay = $("#dropOverlay");
+  overlay.classList.toggle("show", Boolean(visible));
+  overlay.setAttribute("aria-hidden", String(!visible));
+  setDropVisual(visible);
+}
+
 async function consumeDroppedFiles(attempt = 0) {
   const response = await post("consumeDroppedFiles");
   if ((!response || response.type === "cancelled") && attempt < 12) {
@@ -1767,18 +1804,31 @@ function handleDropEvent(event, delay = 110) {
 });
 
 dropZone.addEventListener("drop", event => {
-  setDropVisual(false);
+  showDropOverlay(false);
   handleDropEvent(event, 90);
 });
 
+document.addEventListener("dragenter", event => {
+  if (!dragHasFiles(event) || state.operationRunning) return;
+  dragDepth += 1;
+  showDropOverlay(true);
+}, true);
+document.addEventListener("dragleave", event => {
+  if (!dragHasFiles(event)) return;
+  dragDepth -= 1;
+  if (dragDepth <= 0) showDropOverlay(false);
+}, true);
 document.addEventListener("dragover", event => {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
 }, true);
 document.addEventListener("drop", event => {
-  setDropVisual(false);
+  showDropOverlay(false);
   handleDropEvent(event, 110);
 }, true);
+// Soltar fora da janela ou apertar Esc cancela o arrasto sem avisar a pagina.
+window.addEventListener("blur", () => showDropOverlay(false));
+document.addEventListener("dragend", () => showDropOverlay(false), true);
 
 dropZone.addEventListener("click", () => post("selectFiles", { operation: state.operation }));
 dropZone.addEventListener("keydown", event => {

@@ -55,9 +55,11 @@ def main() -> None:
     window = webview.create_window(
         "DocFlow Manager",
         url=url,
-        width=560,
-        height=940,
-        min_size=(560, 940),
+        # +2px em cada eixo para o contorno de 1px da interface nao comer
+        # area util e trazer a barra de rolagem de volta.
+        width=562,
+        height=942,
+        min_size=(562, 942),
         resizable=False,
         frameless=True,
         easy_drag=False,
