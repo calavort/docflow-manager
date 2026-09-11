@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -13,15 +14,19 @@ from . import file_name_recognizer
 from .dwg_service import GridLayout, merge_with_autocad
 from .log_writer import LogWriter
 from .models import (
-    AddFilesResult,
-    BatchStatus,
     NamingSuggestion,
     OperationOptions,
     OperationResult,
     RenamePreviewItem,
     SelectedFile,
 )
-from .pdf_service import CancelledError, merge as merge_pdf_files, parse_intervals, split as split_pdf_file
+from .pdf_service import (
+    CancelledError,
+    merge as merge_pdf_files,
+    parse_intervals,
+    sanitize_file_name as sanitize_split_name,
+    split as split_pdf_file,
+)
 from .utils import desktop_directory, natural_key, notify_folder_change
 
 
@@ -29,14 +34,11 @@ class FileOperationService:
     def __init__(self) -> None:
         self.files: list[SelectedFile] = []
         self.last_output_files: list[str] = []
-        self.error_count = 0
-        self.last_operation = "rename"
         self.last_output_folder: str | None = None
         self.output_folder: str | None = None
 
-    def add_files(self, paths) -> AddFilesResult:
+    def add_files(self, paths) -> int:
         paths = [str(path) for path in paths]
-        messages: list[str] = []
         added = 0
         incoming_paths = [
             self._clean_path(path)
@@ -52,23 +54,18 @@ class FileOperationService:
             current_folder = os.path.dirname(self.files[0].full_path)
             incoming_folder = os.path.dirname(incoming_paths[0])
             if not self._same_path(current_folder, incoming_folder):
+                # Arquivos de outra pasta comecam um lote novo: a numeracao
+                # de folhas do lote anterior nao vale para eles.
                 self.files.clear()
-                self.error_count = 0
                 self.output_folder = None
-                messages.append("Lista anterior limpa automaticamente porque os novos arquivos sao de outra pasta.")
 
         for raw_path in paths:
             path = self._clean_path(raw_path)
-            if not os.path.isabs(path) or not os.path.isfile(path):
-                messages.append(f"Ignorado: caminho invalido ou inacessivel ({raw_path}).")
-                continue
-            extension = Path(path).suffix.lower()
-            if extension not in {".pdf", ".dwg"}:
-                messages.append(f"Ignorado: extensao nao suportada ({Path(path).name}).")
+            if not self._is_valid_supported_file(path):
                 continue
             if any(self._same_path(file.full_path, path) for file in self.files):
-                messages.append(f"Ignorado: arquivo ja estava na lista ({Path(path).name}).")
                 continue
+            extension = Path(path).suffix.lower()
 
             stat = os.stat(path)
             self.files.append(
@@ -83,13 +80,10 @@ class FileOperationService:
             )
             added += 1
 
-        if added > 0:
-            messages.insert(0, f"{added} arquivo(s) adicionado(s).")
-        return AddFilesResult(added, messages)
+        return added
 
     def clear(self) -> None:
         self.files.clear()
-        self.error_count = 0
         self.last_output_files.clear()
         self.last_output_folder = None
 
@@ -178,17 +172,7 @@ class FileOperationService:
             )
         return preview
 
-    def get_status(self, preview: list[RenamePreviewItem]) -> BatchStatus:
-        if not self.files:
-            validation = 0
-        elif not preview:
-            validation = 100
-        else:
-            validation = round(sum(1 for item in preview if item.is_recognized) * 100.0 / len(preview))
-        return BatchStatus(len(self.files), self.error_count, int(validation), self.last_operation, self._get_output_folder())
-
     def start(self, options: OperationOptions, cancel_event=None) -> OperationResult:
-        self.last_operation = options.operation
         log = LogWriter()
         output_folder = self._get_output_folder()
         os.makedirs(output_folder, exist_ok=True)
@@ -211,22 +195,15 @@ class FileOperationService:
                 raise RuntimeError("Operacao nao suportada: " + options.operation)
 
             self._wait_for_output_files_ready(self.last_output_files, cancel_event)
-            log_file = log.save(output_folder, options.operation) if options.generate_log else ""
-            if log_file:
-                self._wait_for_output_files_ready([log_file], cancel_event)
             for folder in source_folders | {output_folder}:
                 notify_folder_change(folder)
-            return OperationResult(True, output_folder=output_folder, log_file=log_file, output_files=list(self.last_output_files), logs=list(log.entries))
+            return OperationResult(True, output_folder=output_folder, output_files=list(self.last_output_files), logs=list(log.entries))
         except CancelledError:
-            self.error_count += 1
             log.warning("Operacao cancelada pelo usuario.")
-            log_file = log.save(output_folder, options.operation) if options.generate_log else ""
-            return OperationResult(False, cancelled=True, output_folder=output_folder, log_file=log_file, output_files=list(self.last_output_files), logs=list(log.entries))
+            return OperationResult(False, cancelled=True, output_folder=output_folder, output_files=list(self.last_output_files), logs=list(log.entries))
         except Exception as exc:
-            self.error_count += 1
             log.error(str(exc))
-            log_file = log.save(output_folder, options.operation) if options.generate_log else ""
-            return OperationResult(False, output_folder=output_folder, log_file=log_file, output_files=list(self.last_output_files), logs=list(log.entries))
+            return OperationResult(False, output_folder=output_folder, output_files=list(self.last_output_files), logs=list(log.entries))
 
     def _check_cancel(self, cancel_event) -> None:
         if cancel_event is not None and cancel_event.is_set():
@@ -291,6 +268,8 @@ class FileOperationService:
             conflicts = self._get_rename_conflicts(options)
         elif options.operation == "splitPdf":
             conflicts = self._get_pdf_split_conflict_paths(output_folder, options)
+        elif options.operation in {"mergePdf", "mergeDwg"}:
+            conflicts = self._get_merge_conflicts(options, output_folder)
         else:
             conflicts = []
         if not conflicts:
@@ -345,14 +324,7 @@ class FileOperationService:
         pdfs = [file.full_path for file in self.files if file.extension.upper() == "PDF"]
         if len(pdfs) < 2:
             raise RuntimeError("Selecione ao menos dois PDFs para unir.")
-        output_path = self._get_exact_output_path(output_folder, "PDF_Unificado", ".pdf", options.output_file_name)
-        # Protecao adicional: a uniao nunca deve sobrescrever silenciosamente
-        # um dos PDFs usados como origem. A interface ja mostra "Unificado"
-        # nesses casos; este fallback garante a mesma seguranca no backend.
-        if any(self._same_path(output_path, pdf) for pdf in pdfs):
-            stem = Path(output_path).stem
-            if not stem.lower().endswith(" unificado"):
-                output_path = str(Path(output_folder) / f"{stem} Unificado.pdf")
+        output_path = self._merge_pdf_output_path(output_folder, options, pdfs)
         # Gera primeiro em arquivo temporario. Assim o nome final pode ser
         # exatamente o mostrado na previa, mesmo quando ele coincide com um
         # dos PDFs de origem, sem truncar a origem durante a leitura.
@@ -409,7 +381,7 @@ class FileOperationService:
             if len(prepared) < 2:
                 raise RuntimeError("A uniao de DWG precisa de pelo menos dois desenhos validos. Verifique se os arquivos estao baixados do OneDrive e se abrem no AutoCAD.")
             log.info(f"Iniciando uniao otimizada de {len(prepared)} DWG(s). Arquivos temporarios locais: {stage_folder}")
-            merge_with_autocad(prepared, temp_output, log, options.preserve_layouts, cancel_event, self._build_grid_layout(options))
+            merge_with_autocad(prepared, temp_output, log, cancel_event, self._build_grid_layout(options))
             self._check_cancel(cancel_event)
             if not os.path.isfile(temp_output) or os.path.getsize(temp_output) == 0:
                 raise RuntimeError("O AutoCAD terminou sem gerar um DWG final valido.")
@@ -431,6 +403,40 @@ class FileOperationService:
             except Exception:
                 log.warning("Nao foi possivel remover pasta temporaria de DWG: " + stage_folder)
         log.info(f"DWG unido gerado: {output_path}")
+
+    def _merge_pdf_output_path(self, output_folder: str, options: OperationOptions, pdfs: list[str]) -> str:
+        """Caminho final da uniao de PDF.
+
+        Protecao adicional: a uniao nunca deve sobrescrever silenciosamente um
+        dos PDFs usados como origem. A interface ja mostra "Unificado" nesses
+        casos; este calculo garante a mesma seguranca no backend.
+        """
+        output_path = self._get_exact_output_path(output_folder, "PDF_Unificado", ".pdf", options.output_file_name)
+        if any(self._same_path(output_path, pdf) for pdf in pdfs):
+            stem = Path(output_path).stem
+            if not stem.lower().endswith(" unificado"):
+                output_path = str(Path(output_folder) / f"{stem} Unificado.pdf")
+        return output_path
+
+    def _get_merge_conflicts(self, options: OperationOptions, output_folder: str) -> list[str]:
+        """Uniao com nome exato nao pode apagar um arquivo pronto sem avisar.
+
+        Renomear e separar ja pedem confirmacao; antes do nome exato a uniao
+        desviava para "_02" sozinha e nunca chegava a sobrescrever nada.
+        """
+        try:
+            if options.operation == "mergePdf":
+                pdfs = [file.full_path for file in self.files if file.extension.upper() == "PDF"]
+                if len(pdfs) < 2:
+                    return []
+                output_path = self._merge_pdf_output_path(output_folder, options, pdfs)
+            else:
+                if len([file for file in self.files if file.extension.upper() == "DWG"]) < 2:
+                    return []
+                output_path = self._get_exact_output_path(output_folder, "DWG_Unificado", ".dwg", options.output_file_name)
+            return [output_path] if os.path.isfile(output_path) else []
+        except Exception:
+            return []
 
     @staticmethod
     def _build_grid_layout(options: OperationOptions) -> GridLayout:
@@ -508,7 +514,7 @@ class FileOperationService:
                 reader = PdfReader(pdf.full_path)
                 intervals = parse_intervals(options.split_intervals, len(reader.pages))
                 requested = self._split_output_base_name(options, len(pdfs))
-                base_name = self._sanitize_file_name(requested) if requested.strip() else Path(pdf.full_path).stem
+                base_name = sanitize_split_name(requested) if requested.strip() else Path(pdf.full_path).stem
                 for interval in intervals:
                     suffix = f"pag_{interval.start}" if interval.start == interval.end else f"pag_{interval.start}-{interval.end}"
                     candidate = os.path.join(output_folder, f"{base_name}_{suffix}.pdf")
@@ -576,7 +582,6 @@ class FileOperationService:
             "{revisao}": revision,
         }
         for token, value in replacements.items():
-            import re
             name = re.sub(re.escape(token), lambda _: value, name, flags=re.I)
         sanitized = cls._sanitize_file_name(name)
         if sanitized.lower().endswith(extension.lower()):

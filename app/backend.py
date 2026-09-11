@@ -13,6 +13,7 @@ from typing import Any
 
 from .file_operation_service import FileOperationService
 from .models import OperationOptions
+from .update_service import UpdateService
 from .utils import desktop_directory, natural_key, open_folder
 
 
@@ -28,6 +29,7 @@ class DocFlowBackend:
     def __init__(self) -> None:
         self.window = None
         self.operations = FileOperationService()
+        self.updates = UpdateService()
         self.operation_running = False
         self.operation_cancel: threading.Event | None = None
         self._lock = threading.RLock()
@@ -35,6 +37,10 @@ class DocFlowBackend:
 
     def attach_window(self, window) -> None:
         self.window = window
+
+    def attach_update_instance(self, instance) -> None:
+        """Liga o servico de atualizacao a reserva desta janela."""
+        self.updates.attach(instance, self._window_close)
 
     # ------------------------------------------------------------------
     # API única exposta ao Javascript
@@ -45,7 +51,19 @@ class DocFlowBackend:
             command = str(root.get("command", ""))
 
             if command == "ready":
-                return self._state_response("ready")
+                return self._state_response("ready", update=self.updates.state(startup=self.updates.startup_result()))
+            if command == "updateState":
+                return self.updates.state()
+            if command == "checkUpdate":
+                return self.updates.check()
+            if command == "downloadUpdate":
+                return self.updates.download()
+            if command == "installUpdate":
+                if self.operation_running:
+                    return self.updates.state(error="Aguarde a operacao atual terminar para instalar a atualizacao.")
+                return self.updates.install()
+            if command == "updateOfferShown":
+                return self.updates.offer_shown()
             if command == "selectFiles":
                 return self._select_files(root)
             if command == "chooseOutputFolder":
@@ -63,14 +81,13 @@ class DocFlowBackend:
                 if self.operation_running:
                     return self._notice("warning", "Operação em andamento", "Aguarde a operação atual terminar.")
                 self.operations.clear()
-                return self._state_response("filesChanged", toast="Lista limpa.")
+                return self._state_response("filesChanged")
             if command == "generatePreview":
                 options = OperationOptions.from_message(root)
                 preview = self.operations.generate_rename_preview(options)
                 return {
                     "type": "previewReady",
                     "items": [item.to_dict() for item in preview],
-                    "status": self.operations.get_status(preview).to_dict(),
                     "namingSuggestion": self.operations.get_naming_suggestion().to_dict(),
                 }
             if command == "startOperation":
@@ -137,9 +154,8 @@ class DocFlowBackend:
         if not paths:
             return {"type": "cancelled"}
 
-        result = self.operations.add_files(paths)
-        toast = result.messages[0] if result.messages else "Arquivos adicionados."
-        return self._state_response("filesChanged", toast=toast, logs=result.messages)
+        self.operations.add_files(paths)
+        return self._state_response("filesChanged")
 
     def _choose_output_folder(self) -> dict[str, Any]:
         initial = self.operations.get_current_output_folder()
@@ -148,11 +164,7 @@ class DocFlowBackend:
             return {"type": "cancelled"}
 
         self.operations.set_output_folder(folder)
-        return self._state_response(
-            "statusChanged",
-            toast="Pasta de saída definida.",
-            outputFolder=folder,
-        )
+        return self._state_response("statusChanged")
 
     def _open_output_folder(self) -> dict[str, Any]:
         folder = self.operations.get_current_output_folder()
@@ -166,17 +178,13 @@ class DocFlowBackend:
         if self.operation_running:
             return self._notice("warning", "Operação em andamento", "Aguarde a operação atual terminar.")
 
-        original = [str(path) for path in paths]
-        ordered = sorted(original, key=lambda p: (natural_key(str(Path(p).parent)), natural_key(Path(p).name)))
-        result = self.operations.add_files(ordered)
-        logs = list(result.messages)
-        if result.added_count > 0 and [os.path.normcase(p) for p in original] != [os.path.normcase(p) for p in ordered]:
-            logs.append("Arquivos arrastados ordenados por nome para manter a sequência das folhas.")
-        return self._state_response(
-            "filesChanged",
-            toast=(result.messages[0] if result.messages else "Arquivos adicionados."),
-            logs=logs,
+        # A ordem do drop nao e confiavel; o nome mantem a sequencia das folhas.
+        ordered = sorted(
+            (str(path) for path in paths),
+            key=lambda p: (natural_key(str(Path(p).parent)), natural_key(Path(p).name)),
         )
+        self.operations.add_files(ordered)
+        return self._state_response("filesChanged")
 
     # ------------------------------------------------------------------
     # Operações
@@ -208,23 +216,12 @@ class DocFlowBackend:
             "type": "operationCompleted",
             "success": result.success,
             "cancelled": result.cancelled,
-            "outputFolder": result.output_folder,
-            "outputFiles": result.output_files,
-            "logFile": result.log_file,
-            "logs": [entry.to_dict() for entry in result.logs],
             "message": self._operation_message(options.operation, result.success, result.cancelled, result.logs),
         }
-
-
         if result.success:
             self.operations.clear_after_successful_operation()
-            response["files"] = []
-            response["status"] = self.operations.get_status([]).to_dict()
-            response["namingSuggestion"] = self.operations.get_naming_suggestion().to_dict()
-        else:
-            response["files"] = [file.to_dict() for file in self.operations.files]
-            response["status"] = self.operations.get_status([]).to_dict()
-
+        response["files"] = [file.to_dict() for file in self.operations.files]
+        response["namingSuggestion"] = self.operations.get_naming_suggestion().to_dict()
         return response
 
     def _cancel_operation(self) -> dict[str, Any]:
@@ -284,7 +281,6 @@ class DocFlowBackend:
         payload: dict[str, Any] = {
             "type": response_type,
             "files": [file.to_dict() for file in self.operations.files],
-            "status": self.operations.get_status([]).to_dict(),
             "namingSuggestion": self.operations.get_naming_suggestion().to_dict(),
         }
         payload.update(extra)
@@ -299,7 +295,6 @@ class DocFlowBackend:
             "type": "backendError",
             "message": message,
             "files": [file.to_dict() for file in self.operations.files],
-            "status": self.operations.get_status([]).to_dict(),
         }
 
     # ------------------------------------------------------------------

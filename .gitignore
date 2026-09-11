@@ -11,3 +11,7 @@ desktop.ini
 
 # Saidas locais do programa
 *.log
+
+# Estado local do atualizador e pacotes gerados
+.atualizacoes/
+dist/

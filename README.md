@@ -1,5 +1,86 @@
 # DOCFLOW MANAGER — PYTHON V8
 
+## Guia "Atualização" (GitHub Releases)
+
+Ao lado de **Operação** existe a guia **Atualização**, com o mesmo funcionamento
+do Super Captura: a versão instalada é comparada com o último *release*
+publicado no GitHub e a troca acontece por um pacote assinado por SHA-256, com
+backup e recuperação.
+
+**Para quem usa o programa**
+
+- A guia mostra `Versão 8.0.0`, os botões **Verificar** e **Atualizar** e uma
+  linha de estado logo abaixo.
+- Ao abrir, o programa consulta o GitHub uma vez (2,5 s depois da janela subir).
+  Sem internet ele apenas escreve o aviso na guia e continua funcionando.
+- Encontrando uma versão nova, aparece o card **Atualização disponível** com
+  *Cancelar* / *Baixar*. O download é conferido antes de qualquer troca e só
+  então o card **Instalar atualização** pede a confirmação da reinicialização.
+- **Verificar** procura na hora; **Atualizar** baixa e instala a versão
+  encontrada (fica desligado quando não há novidade).
+- Depois de instalar, o programa reabre sozinho e mostra "Atualizado para X".
+
+**Para publicar uma versão nova**
+
+```
+py -3 publicar_release.py --versao 8.1.0 --notas NOTAS_RELEASE_8.1.0.md --publicar
+```
+
+- Sem `--publicar`, gera apenas `dist/DocFlowManager-<versão>.zip` e o `.sha256`.
+- `--criar-repositorio` cria o repositório público `calavort/docflow-manager` na
+  primeira publicação.
+- A autenticação usa `GH_TOKEN`, o `gh auth token` ou as credenciais do Git.
+- `versao.json` guarda `app_id`, versão e repositório; o publicador grava a nova
+  versão nesse arquivo ao montar o pacote.
+
+**Garantias do instalador**
+
+- Apenas os arquivos listados em `APP_FILES` (`atualizador.py`) entram e saem do
+  pacote. Nada fora da pasta do programa é tocado e caminhos com `..` ou links
+  são recusados.
+- O pacote é conferido arquivo a arquivo pelo manifesto; os `.py`/`.pyw` ainda
+  são compilados antes de serem gravados.
+- A instalação é transacional: um backup e um diário (`transacao.json`) são
+  criados antes da troca e, se algo falhar no meio, a abertura seguinte reverte
+  tudo sozinha.
+- `versao.json` é o último arquivo trocado, então uma interrupção nunca deixa a
+  versão marcada à frente do código.
+- Uma atualização que mude `requirements.txt` é recusada: bibliotecas novas
+  pedem instalação manual.
+- Enquanto o programa estiver aberto, o instalador espera (até 90 s); enquanto o
+  instalador estiver rodando, nenhuma janela nova abre.
+- Na pasta de desenvolvimento (com `.git`) a instalação por cima é bloqueada:
+  ali a versão deve ser publicada, não sobrescrita.
+
+## Revisão de código — 10/09/2026
+
+- **União não apaga mais um arquivo pronto sem avisar**: com o nome exato da
+  prévia, *Unir PDF* e *Unir DWG* passaram a poder gravar por cima de um arquivo
+  já existente na pasta de saída (antes o nome desviava sozinho para `_02`).
+  Agora essas duas operações usam a mesma confirmação de sobrescrita que
+  *Renomear* e *Separar PDF* já usavam. A proteção contra sobrescrever um PDF de
+  origem continua valendo e vem antes dessa checagem.
+- **Revisão com espaço**: `Rev. 2` no nome do arquivo deixava o campo *Revisão*
+  com um espaço à frente (` 2`). Agora `Rev. 2` e `Rev.2` chegam ao campo como
+  `2` nos dois casos, no Python e na interface.
+- **Conflito ao separar PDF com ponto no nome**: a checagem de arquivos já
+  existentes usava um saneador diferente do usado na gravação, então um nome de
+  saída com ponto passava batido e a operação parava em "Arquivo ja existe" em
+  vez de perguntar se era para sobrescrever.
+- **Código sem uso removido**: o `BatchStatus` inteiro (`fileCount`,
+  `errorCount`, `validationPercent`, `activeOperation`, `outputFolder`) e o
+  `get_status` que o montava — a interface nunca leu `message.status`; as
+  mensagens `toast`/`logs` de `selectFiles`, `clearFiles`, `chooseOutputFolder`
+  e do arrastar-e-soltar (e o `AddFilesResult` que as carregava); as chaves
+  `outputFolder`, `outputFiles` e `logFile` da resposta de conclusão; a opção
+  `generateLog` com o `LogWriter.save` (nunca houve botão para ligá-la); a opção
+  `preserveLayouts`, que só gerava um aviso de log inalcançável; o `pywintypes`
+  importado e nunca usado em `dwg_service`; e o `import re` repetido dentro do
+  laço de `_build_output_name`.
+- **Recursos sem controle na interface** (mantidos de propósito, é só faltar o
+  botão): `splitIntervals`, que separa o PDF por faixas de páginas, e o comando
+  `cancelOperation`, que interrompe a operação em andamento.
+
 ## Ajustes de nomenclatura — 10/09/2026
 
 - **Nome do arquivo** e **Prévia do nome** agora possuem o mesmo menu de opções, com **Incluir revisão** e **Incluir paginação**. As opções ficam sincronizadas entre os dois menus.
@@ -49,6 +130,7 @@ Antes de mostrar a janela, o programa executa um autoteste no mesmo endpoint usa
 
 ## Funcionalidades
 
+- Atualização automática pelo GitHub Releases (guia *Atualização*).
 - Renomear PDF/DWG.
 - Unir PDF.
 - Separar PDF.

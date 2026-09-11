@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import ctypes
 import os
 
 from .backend import DocFlowBackend
 from .http_bridge import BackendHttpBridge
+from .update_service import AppInstance
 from .utils import hide_console_window
+
+
+def _message_box(text: str) -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.user32.MessageBoxW(None, text, "DocFlow Manager", 0x40)
+        except Exception:
+            pass
 
 
 def main() -> None:
@@ -20,7 +30,20 @@ def main() -> None:
     storage = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "DocFlow Manager" / "WebView2Data"
     storage.mkdir(parents=True, exist_ok=True)
 
+    # A reserva impede que uma janela abra no meio de uma instalacao e
+    # recupera a atualizacao anterior se ela tiver sido interrompida.
+    instance = AppInstance(root)
+    try:
+        if not instance.acquire():
+            _message_box("Uma atualizacao esta em andamento. Aguarde a conclusao para abrir o programa.")
+            return
+    except Exception as exc:
+        instance.release()
+        _message_box(f"Nao foi possivel recuperar a atualizacao anterior: {exc}")
+        return
+
     backend = DocFlowBackend()
+    backend.attach_update_instance(instance)
     bridge = BackendHttpBridge(backend, interface)
     url = bridge.start()
 
@@ -101,6 +124,7 @@ def main() -> None:
         )
     finally:
         bridge.stop()
+        instance.release()
 
 
 if __name__ == "__main__":

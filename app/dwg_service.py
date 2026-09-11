@@ -22,8 +22,7 @@ def _import_com():
     try:
         import pythoncom  # type: ignore
         import win32com.client  # type: ignore
-        import pywintypes  # type: ignore
-        return pythoncom, win32com.client, pywintypes
+        return pythoncom, win32com.client
     except Exception as exc:
         raise RuntimeError("Automacao DWG requer pywin32. Execute instalar_bibliotecas.bat e tente novamente.") from exc
 
@@ -306,8 +305,8 @@ def _insert_dwg_as_block(document, input_file: str, x: float, y: float, z: float
         raise RuntimeError(f"O AutoCAD nao conseguiu inserir {Path(input_file).name}: {exc}") from exc
 
 
-def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter, preserve_layouts: bool, cancel_event=None, layout: GridLayout | None = None) -> None:
-    pythoncom, client, pywintypes = _import_com()
+def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter, cancel_event=None, layout: GridLayout | None = None) -> None:
+    pythoncom, client = _import_com()
     pythoncom.CoInitialize()
     target_document = None
     try:
@@ -319,8 +318,6 @@ def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter,
         log.info("AutoCAD pronto para uniao de DWG em thread STA.")
         log.info("Chamadas COM com retry ativado para reduzir falhas de aplicativo ocupado.")
         log.info("Modo rapido ativado: o DocFlow insere os DWGs direto no Model Space e evita abrir cada arquivo apenas para medicao.")
-        if preserve_layouts:
-            log.warning("A importacao de layouts foi ignorada no modo rapido para evitar lentidao e abas auxiliares no AutoCAD. O arquivo final mantem os desenhos unidos no Model Space.")
 
         grid = layout or GridLayout()
         inserted: list[list] = []

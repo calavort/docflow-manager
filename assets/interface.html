@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="docflow_app_icon.png">
-<title>DocFlow Manager - Conceito V2</title>
+<title>DocFlow Manager</title>
 <style>
 :root{
   --bg:#f3f2f1;
@@ -55,6 +55,26 @@ body{display:block;padding:0}
 .window-control.close:hover{background:#c42b1c}
 .content{padding:12px 16px 10px;flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto}
 .content > *{flex:none}
+/* Guias principais: ocupam o lugar do titulo 'Operação'. */
+.main-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 9px;flex:none}
+.main-tab{
+  appearance:none;border:0;background:transparent;padding:3px 12px 6px;margin-bottom:-1px;
+  font:700 11px "Segoe UI",Arial;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent
+}
+.main-tab:hover{color:var(--text)}
+.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.main-panel{flex:1;min-height:0;display:flex;flex-direction:column}
+.main-panel > *{flex:none}
+.update-version{font-size:15px;font-weight:600;color:var(--text);margin-bottom:10px}
+.update-actions{margin-bottom:10px}
+.update-status{
+  min-height:28px;border:1px solid #e5e5e5;background:#fafafa;border-radius:2px;
+  display:flex;align-items:center;padding:5px 9px;font-size:12px;color:#4a4947
+}
+.update-note{font-size:11px;color:var(--muted);line-height:1.5;margin:0}
+.update-note + .update-note{margin-top:7px}
+.update-note b{color:#4a4947;font-weight:600}
 .section-title{
   font-size:11px;text-transform:uppercase;letter-spacing:.7px;
   color:var(--muted);font-weight:700;margin:0 0 6px
@@ -239,8 +259,12 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
   </div>
 
   <div class="content">
-    <div class="section-title">Operação</div>
+    <div class="main-tabs" role="tablist" aria-label="Seções do programa">
+      <button class="main-tab active" id="mainTabOperacao" type="button" role="tab" data-main-tab="operacao" aria-selected="true" aria-controls="mainPanelOperacao">Operação</button>
+      <button class="main-tab" id="mainTabAtualizacao" type="button" role="tab" data-main-tab="atualizacao" aria-selected="false" aria-controls="mainPanelAtualizacao">Atualização</button>
+    </div>
 
+    <div class="main-panel" id="mainPanelOperacao" role="tabpanel" aria-labelledby="mainTabOperacao">
     <div class="ops">
       <div class="op active" data-op="rename">
         <div class="icon">
@@ -463,6 +487,38 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
       <button class="btn" id="limparLista" type="button">Limpar lista</button>
       <button class="btn primary" id="startBtn" type="button">Iniciar</button>
     </div>
+    </div>
+
+    <div class="main-panel hidden" id="mainPanelAtualizacao" role="tabpanel" aria-labelledby="mainTabAtualizacao">
+      <div class="section-title">Atualizações</div>
+      <div class="panel">
+        <div class="update-version" id="updateVersion">Versão 8.0.0</div>
+        <div class="row update-actions">
+          <button class="btn" id="updateCheck" type="button" title="Procurar uma versão nova no GitHub">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.4-5.7"/>
+              <path d="M20 4.5V9h-4.5"/>
+            </svg>
+            Verificar
+          </button>
+          <button class="btn" id="updateInstall" type="button" disabled title="Baixar e instalar a versão disponível">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v10M8.5 10.5 12 14l3.5-3.5"/>
+              <path d="M4.5 16.5v2A1.5 1.5 0 0 0 6 20h12a1.5 1.5 0 0 0 1.5-1.5v-2"/>
+            </svg>
+            Atualizar
+          </button>
+        </div>
+        <div class="update-status" id="updateStatus">Aguardando verificação.</div>
+      </div>
+
+      <div class="section-title">Como funciona</div>
+      <div class="panel">
+        <p class="update-note">O programa procura uma versão nova ao abrir e sempre que você clicar em <b>Verificar</b>. Sem internet, nada muda: o DocFlow continua funcionando normalmente.</p>
+        <p class="update-note">O download é conferido por assinatura <b>SHA-256</b> antes de qualquer troca de arquivo, e a instalação só começa depois que você confirmar a reinicialização.</p>
+        <p class="update-note">Se algo falhar no meio da troca, a abertura seguinte devolve a versão anterior sozinha. Seus arquivos e pastas de saída nunca são tocados.</p>
+      </div>
+    </div>
   </div>
 
   <div class="footer">Programa desenvolvido por Edflávio Calavort - 2026</div>
@@ -471,8 +527,8 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
   <div class="loading-card">
     <div class="spinner" aria-hidden="true"></div>
-    <p class="loading-title">Processando operação</p>
-    <p class="loading-text">Executando: <span class="loading-op" id="loadingOp">Renomear</span></p>
+    <p class="loading-title" id="loadingTitle">Processando operação</p>
+    <p class="loading-text" id="loadingText">Executando: <span class="loading-op" id="loadingOp">Renomear</span></p>
   </div>
 </div>
 <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
@@ -537,7 +593,9 @@ async function post(command, payload = {}) {
   }
 }
 
-function showLoading(operation) {
+function showLoading(operation, title = "Processando operação", lead = "Executando: ") {
+  $("#loadingTitle").textContent = title;
+  $("#loadingText").firstChild.textContent = lead;
   $("#loadingOp").textContent = operationLabels[operation] || operation || "Operação";
   $("#loadingOverlay").classList.add("show");
   $("#loadingOverlay").setAttribute("aria-hidden", "false");
@@ -625,8 +683,9 @@ function escapeRegExp(value) {
   return String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// "Rev. 2" e "Rev.2" chegam ao campo Revisão como "2" nos dois casos.
 function displayRevision(value) {
-  return clean(value).replace(/^rev\./i, "") || "0";
+  return clean(value).replace(/^rev\.\s*/i, "").trim() || "0";
 }
 
 function normalizedRevision(value) {
@@ -1288,6 +1347,13 @@ window.handleBackendMessage = function handleBackendMessage(message) {
       renderFiles(message.files || []);
       applyNamingSuggestion(message.namingSuggestion);
       requestPreview();
+      if (message.update) {
+        renderUpdate(message.update);
+        if (message.update.startup) alertDialog("Atualização", message.update.startup);
+      }
+      break;
+    case "updateState":
+      renderUpdate(message);
       break;
     case "previewReady":
       renderPreview(message.items);
@@ -1335,6 +1401,128 @@ window.handleBackendMessage = function handleBackendMessage(message) {
       break;
   }
 };
+
+// ---------------------------------------------------------------- atualização
+// Mesmo funcionamento do Super Captura: Verificar procura a versão nova e
+// Atualizar baixa e instala. O trabalho pesado roda em uma thread do backend e
+// esta tela acompanha o andamento por consultas curtas enquanto ele está ocupado.
+const update = {
+  version: "",
+  latest: "",
+  stage: "idle",
+  busy: false,
+  supported: false,
+  available: false,
+  ready: false,
+  offering: false,
+  installPrompted: false
+};
+let updatePollTimer = null;
+
+function setMainTab(tab) {
+  const target = tab === "atualizacao" ? "atualizacao" : "operacao";
+  $$(".main-tab").forEach(button => {
+    const active = button.dataset.mainTab === target;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("#mainPanelOperacao").classList.toggle("hidden", target !== "operacao");
+  $("#mainPanelAtualizacao").classList.toggle("hidden", target !== "atualizacao");
+}
+
+function startUpdatePolling() {
+  if (updatePollTimer) return;
+  updatePollTimer = setInterval(() => post("updateState"), 700);
+}
+
+function stopUpdatePolling() {
+  clearInterval(updatePollTimer);
+  updatePollTimer = null;
+}
+
+function renderUpdate(payload) {
+  if (!payload || payload.type !== "updateState") return;
+  const previousLatest = update.latest;
+  Object.assign(update, {
+    version: payload.version || "",
+    latest: payload.latest || "",
+    stage: payload.stage || "idle",
+    busy: Boolean(payload.busy),
+    supported: Boolean(payload.supported),
+    available: Boolean(payload.available),
+    ready: Boolean(payload.ready)
+  });
+  if (update.latest !== previousLatest) update.installPrompted = false;
+
+  $("#updateVersion").textContent = update.version ? `Versão ${update.version}` : "DocFlow Manager";
+  $("#updateCheck").disabled = !update.supported || update.busy;
+  $("#updateInstall").disabled = !update.supported || update.busy || !update.available;
+  $("#updateInstall").title = update.available
+    ? `Baixar e instalar a versão ${update.latest}`
+    : "Nenhuma versão nova disponível";
+  $("#updateStatus").textContent = payload.message || "";
+  $("#updateStatus").title = payload.message || "";
+
+  if (update.busy) startUpdatePolling();
+  else stopUpdatePolling();
+
+  if (update.stage === "installing") {
+    showLoading(update.latest, "Instalando a atualização", "Versão ");
+  } else if (!state.operationRunning) {
+    hideLoading();
+  }
+
+  if (payload.error) {
+    alertDialog("Atualização", payload.error);
+    return;
+  }
+  if (payload.shouldOffer && !update.busy) offerUpdate();
+  else if (update.ready && !update.busy) promptInstall();
+}
+
+async function offerUpdate() {
+  if (update.offering || update.busy || dialogIsOpen() || state.operationRunning) return;
+  update.offering = true;
+  await post("updateOfferShown");
+  const wanted = await confirmDialog(
+    "Atualização disponível",
+    `A versão ${update.latest} está disponível.\n\nBaixar agora? A instalação é confirmada depois do download.`,
+    "Baixar"
+  );
+  update.offering = false;
+  if (wanted) post("downloadUpdate");
+}
+
+async function promptInstall() {
+  if (update.installPrompted || update.busy || dialogIsOpen() || state.operationRunning) return;
+  update.installPrompted = true;
+  const confirmed = await confirmDialog(
+    "Instalar atualização",
+    `Instalar a versão ${update.latest} e reiniciar o DocFlow Manager?\n\nFeche as outras janelas do programa antes de continuar.`,
+    "Instalar e reiniciar"
+  );
+  if (confirmed) post("installUpdate");
+}
+
+$$(".main-tab").forEach(button => {
+  button.addEventListener("click", () => setMainTab(button.dataset.mainTab));
+});
+
+$("#updateCheck").addEventListener("click", () => {
+  if (update.busy || !update.supported) return;
+  post("checkUpdate");
+});
+
+$("#updateInstall").addEventListener("click", () => {
+  if (update.busy || !update.supported || !update.available) return;
+  if (update.ready) {
+    update.installPrompted = false;
+    promptInstall();
+    return;
+  }
+  update.offering = false;
+  offerUpdate();
+});
 
 function syncNamingMenuChecks() {
   $("#includeRevision").checked = state.includeRevision;
@@ -1620,8 +1808,11 @@ document.addEventListener("keydown", event => {
 window.addEventListener("DOMContentLoaded", () => {
   post("ready");
   setInterval(() => post("consumeDroppedFiles"), 900);
+  // A primeira consulta espera a janela assentar para não competir com ela.
+  setTimeout(() => { if (update.supported) post("checkUpdate"); }, 2500);
 });
 
+setMainTab("operacao");
 renderFiles([]);
 renderBatchMode();
 syncNamingMenuChecks();

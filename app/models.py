@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any
 import math
 
+from .file_name_recognizer import normalize_revision
+
 
 @dataclass(slots=True)
 class SelectedFile:
@@ -23,12 +25,6 @@ class SelectedFile:
             "size": self.size,
             "status": self.status,
         }
-
-
-@dataclass(slots=True)
-class AddFilesResult:
-    added_count: int
-    messages: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -80,24 +76,6 @@ class RenamePreviewItem:
 
 
 @dataclass(slots=True)
-class BatchStatus:
-    file_count: int
-    error_count: int
-    validation_percent: int
-    active_operation: str
-    output_folder: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "fileCount": self.file_count,
-            "errorCount": self.error_count,
-            "validationPercent": self.validation_percent,
-            "activeOperation": self.active_operation,
-            "outputFolder": self.output_folder,
-        }
-
-
-@dataclass(slots=True)
 class OperationLogEntry:
     level: str
     message: str
@@ -112,7 +90,6 @@ class OperationResult:
     cancelled: bool = False
     requires_overwrite_confirmation: bool = False
     output_folder: str = ""
-    log_file: str = ""
     output_files: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
     logs: list[OperationLogEntry] = field(default_factory=list)
@@ -166,8 +143,6 @@ class OperationOptions:
     split_intervals: str = ""
     output_pattern: str = "{codigo} FL{folha}-{total} {rev}"
     output_file_name: str = ""
-    generate_log: bool = False
-    preserve_layouts: bool = False
     overwrite_confirmed: bool = False
     dwg_layout: DwgLayoutOptions = field(default_factory=lambda: DwgLayoutOptions())
 
@@ -223,8 +198,6 @@ class OperationOptions:
             split_intervals=cls._text(options.get("splitIntervals", ""), "").strip(),
             output_pattern=output_pattern,
             output_file_name=cls._text(options.get("outputFileName", ""), "").strip(),
-            generate_log=cls._bool(options.get("generateLog", False)),
-            preserve_layouts=cls._bool(options.get("preserveLayouts", False)),
             dwg_layout=DwgLayoutOptions.from_dict(options.get("dwgLayout")),
             overwrite_confirmed=cls._bool(options.get("overwriteConfirmed", False)) or cls._bool(root.get("overwriteConfirmed", False)),
         )
@@ -246,5 +219,4 @@ class OperationOptions:
 
     @staticmethod
     def normalize_revision(revision: str) -> str:
-        value = (revision or "0").strip() or "0"
-        return value if value.lower().startswith("rev.") else f"Rev.{value}"
+        return normalize_revision(revision)

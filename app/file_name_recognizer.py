@@ -26,8 +26,14 @@ CODE_RE = re.compile(r"\b[A-Z0-9]{2,}(?:-[A-Z0-9]+){2,}\b", re.I)
 
 
 def normalize_revision(revision: str) -> str:
+    """Revisao sempre no formato ``Rev.X``.
+
+    Nomes como ``Rev. 2`` (com espaco) apareciam no campo Revisao como " 2".
+    """
     value = (revision or "0").strip() or "0"
-    return value if value.lower().startswith("rev.") else f"Rev.{value}"
+    if value.lower().startswith("rev."):
+        value = value[4:].strip() or "0"
+    return f"Rev.{value}"
 
 
 def detect(file_name: str, fallback_sheet: int) -> DetectedName:
