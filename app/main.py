@@ -7,7 +7,7 @@ import os
 from .backend import DocFlowBackend
 from .http_bridge import BackendHttpBridge
 from .update_service import AppInstance
-from .utils import hide_console_window
+from .utils import close_stale_webview_processes, hide_console_window
 
 
 def _message_box(text: str) -> None:
@@ -72,17 +72,50 @@ def main() -> None:
     )
     backend.attach_window(window)
 
+    def _page_is_up(bound_window) -> bool:
+        """Confirma que a interface desenhou antes de ligar o resto.
+
+        Sobras de ``msedgewebview2.exe`` de uma finalizacao a forca seguram a
+        pasta de dados e o WebView2 nao inicia ("Recurso solicitado em uso").
+        A janela abria vazia sem explicar nada; agora o programa limpa a sobra
+        e diz o que fazer.
+        """
+        try:
+            if bound_window.events.loaded.wait(15):
+                backend.apply_square_corners()
+                backend._window_set_topmost(True)
+                return True
+        except Exception:
+            pass
+
+        encerrados = close_stale_webview_processes(str(storage))
+        if encerrados:
+            _message_box(
+                "A interface nao carregou porque um processo do WebView2 tinha ficado preso "
+                "de uma execucao anterior.\n\n"
+                f"Ja encerrei {encerrados} processo(s). Abra o DocFlow Manager novamente."
+            )
+        else:
+            _message_box(
+                "A interface nao carregou. Feche o DocFlow Manager pelo Gerenciador de Tarefas, "
+                "se ele ainda aparecer la, e abra o programa novamente."
+            )
+        try:
+            bound_window.destroy()
+        except Exception:
+            pass
+        return False
+
     def bind_drop(bound_window) -> None:
         """Liga o drag-and-drop assim que a pagina estiver pronta.
 
         Este e o fluxo recomendado pelo proprio pywebview para que o WebView2
         habilite a captura nativa de arquivos e entregue ``pywebviewFullPath``.
         """
-        try:
-            bound_window.events.loaded.wait(10)
-            backend.apply_square_corners()
-            backend._window_set_topmost(True)
+        if not _page_is_up(bound_window):
+            return
 
+        try:
             def _on_drag(_event) -> None:
                 return None
 

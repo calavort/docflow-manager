@@ -67,3 +67,46 @@ def hide_console_window() -> None:
             ctypes.windll.user32.ShowWindow(hwnd, 0)
     except Exception:
         pass
+
+
+def close_stale_webview_processes(storage_path: str) -> int:
+    """Encerra processos do WebView2 presos na pasta de dados do programa.
+
+    Quando o DocFlow e finalizado a forca, os processos ``msedgewebview2.exe``
+    filhos podem sobreviver segurando essa pasta. A abertura seguinte falha com
+    "Recurso solicitado em uso" (0x800700AA) e a janela aparece em branco, sem
+    dizer nada. So chame com a reserva de instancia na mao: sem outro DocFlow
+    vivo, qualquer processo apontando para essa pasta e sobra de uma execucao
+    anterior.
+    """
+    if os.name != "nt" or not storage_path:
+        return 0
+    script = (
+        "$alvo = $env:DOCFLOW_STORAGE;"
+        "$presos = Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" |"
+        " Where-Object { $_.CommandLine -and $_.CommandLine.Contains($alvo) };"
+        "$presos | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };"
+        "($presos | Measure-Object).Count"
+    )
+    try:
+        env = os.environ.copy()
+        env["DOCFLOW_STORAGE"] = os.path.abspath(storage_path)
+        completed = subprocess.run(
+            [powershell_exe(), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            timeout=20,
+            check=False,
+        )
+        return int((completed.stdout or "0").strip() or 0)
+    except Exception:
+        return 0
+
+
+def powershell_exe() -> str:
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    candidate = os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    return candidate if os.path.isfile(candidate) else "powershell.exe"
