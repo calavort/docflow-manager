@@ -10,7 +10,7 @@ import time
 from pypdf import PdfReader
 
 from . import file_name_recognizer
-from .dwg_service import merge_with_autocad
+from .dwg_service import GridLayout, merge_with_autocad
 from .log_writer import LogWriter
 from .models import (
     AddFilesResult,
@@ -345,13 +345,35 @@ class FileOperationService:
         pdfs = [file.full_path for file in self.files if file.extension.upper() == "PDF"]
         if len(pdfs) < 2:
             raise RuntimeError("Selecione ao menos dois PDFs para unir.")
-        output_path = self._get_unique_output_path(output_folder, "PDF_Unificado", ".pdf", options.output_file_name)
-        self._check_cancel(cancel_event)
-        merge_pdf_files(pdfs, output_path, cancel_event)
-        self.last_output_files.append(output_path)
-        log.info(f"PDF unido gerado: {output_path}")
-        for pdf in pdfs:
-            log.info(f"PDF incluido: {Path(pdf).name}")
+        output_path = self._get_exact_output_path(output_folder, "PDF_Unificado", ".pdf", options.output_file_name)
+        # Protecao adicional: a uniao nunca deve sobrescrever silenciosamente
+        # um dos PDFs usados como origem. A interface ja mostra "Unificado"
+        # nesses casos; este fallback garante a mesma seguranca no backend.
+        if any(self._same_path(output_path, pdf) for pdf in pdfs):
+            stem = Path(output_path).stem
+            if not stem.lower().endswith(" unificado"):
+                output_path = str(Path(output_folder) / f"{stem} Unificado.pdf")
+        # Gera primeiro em arquivo temporario. Assim o nome final pode ser
+        # exatamente o mostrado na previa, mesmo quando ele coincide com um
+        # dos PDFs de origem, sem truncar a origem durante a leitura.
+        temp_output = os.path.join(output_folder, f".docflow_pdf_merge_{uuid4().hex}.pdf")
+        try:
+            self._check_cancel(cancel_event)
+            merge_pdf_files(pdfs, temp_output, cancel_event)
+            self._check_cancel(cancel_event)
+            if not os.path.isfile(temp_output) or os.path.getsize(temp_output) == 0:
+                raise RuntimeError("A uniao terminou sem gerar um PDF final valido.")
+            os.replace(temp_output, output_path)
+            self.last_output_files.append(output_path)
+            log.info(f"PDF unido gerado: {output_path}")
+            for pdf in pdfs:
+                log.info(f"PDF incluido: {Path(pdf).name}")
+        finally:
+            try:
+                if os.path.isfile(temp_output):
+                    os.remove(temp_output)
+            except Exception:
+                log.warning("Nao foi possivel remover arquivo temporario: " + temp_output)
 
     def _split_pdf(self, output_folder: str, options: OperationOptions, log: LogWriter, cancel_event) -> None:
         pdfs = [file.full_path for file in self.files if file.extension.upper() == "PDF"]
@@ -380,14 +402,14 @@ class FileOperationService:
         ordered = self._order_dwg_inputs(dwgs)
         stage_folder = os.path.join(tempfile.gettempdir(), "DocFlow Manager", "DwgStage", uuid4().hex)
         temp_output = os.path.join(stage_folder, f"DocFlow_Work_{uuid4().hex}.dwg")
-        output_path = self._get_unique_output_path(output_folder, "DWG_Unificado", ".dwg", options.output_file_name)
+        output_path = self._get_exact_output_path(output_folder, "DWG_Unificado", ".dwg", options.output_file_name)
         started = time.monotonic()
         try:
             prepared = self._prepare_dwg_inputs_for_autocad(ordered, stage_folder, log, cancel_event)
             if len(prepared) < 2:
                 raise RuntimeError("A uniao de DWG precisa de pelo menos dois desenhos validos. Verifique se os arquivos estao baixados do OneDrive e se abrem no AutoCAD.")
             log.info(f"Iniciando uniao otimizada de {len(prepared)} DWG(s). Arquivos temporarios locais: {stage_folder}")
-            merge_with_autocad(prepared, temp_output, log, options.preserve_layouts, cancel_event)
+            merge_with_autocad(prepared, temp_output, log, options.preserve_layouts, cancel_event, self._build_grid_layout(options))
             self._check_cancel(cancel_event)
             if not os.path.isfile(temp_output) or os.path.getsize(temp_output) == 0:
                 raise RuntimeError("O AutoCAD terminou sem gerar um DWG final valido.")
@@ -409,6 +431,18 @@ class FileOperationService:
             except Exception:
                 log.warning("Nao foi possivel remover pasta temporaria de DWG: " + stage_folder)
         log.info(f"DWG unido gerado: {output_path}")
+
+    @staticmethod
+    def _build_grid_layout(options: OperationOptions) -> GridLayout:
+        layout = options.dwg_layout
+        return GridLayout(
+            columns=layout.columns,
+            rows=layout.rows,
+            gap_x=layout.gap_x,
+            gap_y=layout.gap_y,
+            order=layout.order,
+            uniform=layout.uniform,
+        )
 
     def _order_dwg_inputs(self, dwgs: list[str]) -> list[str]:
         decorated = []
@@ -500,17 +534,18 @@ class FileOperationService:
         base_folder = os.path.dirname(self.files[0].full_path) if self.files else desktop_directory()
         return self.output_folder or base_folder
 
-    def _get_unique_output_path(self, output_folder: str, default_base_name: str, extension: str, requested_name: str | None) -> str:
-        base_name = Path(self._sanitize_file_name(requested_name)).stem if (requested_name or "").strip() else default_base_name
+    def _get_exact_output_path(self, output_folder: str, default_base_name: str, extension: str, requested_name: str | None) -> str:
+        # O arquivo gerado deve ter exatamente o nome mostrado na previa.
+        # Nao use Path(...).stem aqui: nomes como "Rev.3" ou "Rev.A"
+        # seriam interpretados como se ".3"/".A" fosse uma extensao e a revisao
+        # desapareceria do nome final. Remove apenas a extensao real da operacao.
+        if (requested_name or "").strip():
+            requested = self._sanitize_file_name(requested_name)
+            base_name = requested[:-len(extension)] if requested.lower().endswith(extension.lower()) else requested
+        else:
+            base_name = default_base_name
         base_name = base_name or default_base_name
-        path = os.path.join(output_folder, base_name + extension)
-        if not os.path.exists(path):
-            return path
-        for index in range(2, 10000):
-            candidate = os.path.join(output_folder, f"{base_name}_{index:02d}{extension}")
-            if not os.path.exists(candidate):
-                return candidate
-        return os.path.join(output_folder, f"{base_name}_{time.strftime('%Y%m%d_%H%M%S')}{extension}")
+        return os.path.join(output_folder, base_name + extension)
 
     def _get_unique_temp_path(self, source_path: str) -> str:
         folder = os.path.dirname(source_path) or desktop_directory()

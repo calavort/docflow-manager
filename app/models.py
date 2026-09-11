@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import math
 
 
 @dataclass(slots=True)
@@ -118,6 +119,45 @@ class OperationResult:
 
 
 @dataclass(slots=True)
+class DwgLayoutOptions:
+    """Disposicao dos desenhos na uniao de DWG.
+
+    Zero significa automatico: colunas/linhas sao deduzidas da quantidade de
+    arquivos e o espacamento e calculado pelo tamanho dos desenhos.
+    """
+
+    columns: int = 0
+    rows: int = 0
+    gap_x: float = 0.0
+    gap_y: float = 0.0
+    order: str = "row"
+    uniform: bool = True
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> "DwgLayoutOptions":
+        data = raw if isinstance(raw, dict) else {}
+        order = str(data.get("order", "row") or "row").strip().lower()
+        return cls(
+            columns=max(0, OperationOptions._int(data.get("columns", 0), 0)),
+            rows=max(0, OperationOptions._int(data.get("rows", 0), 0)),
+            gap_x=max(0.0, OperationOptions._float(data.get("gapX", 0.0), 0.0)),
+            gap_y=max(0.0, OperationOptions._float(data.get("gapY", 0.0), 0.0)),
+            order="column" if order in {"column", "coluna", "vertical"} else "row",
+            uniform=OperationOptions._bool(data.get("uniform", True), True),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "columns": self.columns,
+            "rows": self.rows,
+            "gapX": self.gap_x,
+            "gapY": self.gap_y,
+            "order": self.order,
+            "uniform": self.uniform,
+        }
+
+
+@dataclass(slots=True)
 class OperationOptions:
     operation: str = "rename"
     revision: str = "Rev.0"
@@ -129,6 +169,7 @@ class OperationOptions:
     generate_log: bool = False
     preserve_layouts: bool = False
     overwrite_confirmed: bool = False
+    dwg_layout: DwgLayoutOptions = field(default_factory=lambda: DwgLayoutOptions())
 
     @staticmethod
     def _text(value: Any, default: str = "") -> str:
@@ -153,6 +194,18 @@ class OperationOptions:
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _float(value: Any, default: float = 0.0) -> float:
+        if isinstance(value, str):
+            value = value.strip().replace(",", ".")
+            if not value:
+                return default
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+        return number if math.isfinite(number) else default
+
     @classmethod
     def from_message(cls, root: dict[str, Any]) -> "OperationOptions":
         nested = root.get("options")
@@ -172,6 +225,7 @@ class OperationOptions:
             output_file_name=cls._text(options.get("outputFileName", ""), "").strip(),
             generate_log=cls._bool(options.get("generateLog", False)),
             preserve_layouts=cls._bool(options.get("preserveLayouts", False)),
+            dwg_layout=DwgLayoutOptions.from_dict(options.get("dwgLayout")),
             overwrite_confirmed=cls._bool(options.get("overwriteConfirmed", False)) or cls._bool(root.get("overwriteConfirmed", False)),
         )
 

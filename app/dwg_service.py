@@ -98,15 +98,103 @@ class Bounds:
     def width(self) -> float:
         return abs(self.max_x - self.min_x)
 
-    def shift_to(self, min_x: float, min_y: float, min_z: float) -> "Bounds":
-        return Bounds(
-            min_x,
-            min_y,
-            min_z,
-            min_x + abs(self.max_x - self.min_x),
-            min_y + abs(self.max_y - self.min_y),
-            min_z + abs(self.max_z - self.min_z),
-        )
+    @property
+    def height(self) -> float:
+        return abs(self.max_y - self.min_y)
+
+
+@dataclass(slots=True)
+class GridLayout:
+    """Parametros da grade escolhidos na aba Parametros.
+
+    Zero em qualquer campo significa automatico.
+    """
+
+    columns: int = 0
+    rows: int = 0
+    gap_x: float = 0.0
+    gap_y: float = 0.0
+    order: str = "row"
+    uniform: bool = True
+
+
+def _resolve_grid(count: int, layout: GridLayout) -> tuple[int, int]:
+    """Colunas e linhas efetivas para a quantidade de desenhos."""
+    columns = max(0, int(layout.columns))
+    rows = max(0, int(layout.rows))
+    if columns <= 0 and rows <= 0:
+        # Sem escolha do usuario a grade fica o mais proxima possivel de um
+        # quadrado, evitando a faixa infinita de desenhos lado a lado.
+        columns = max(1, math.ceil(math.sqrt(count)))
+        rows = math.ceil(count / columns)
+    elif columns <= 0:
+        columns = math.ceil(count / max(1, rows))
+    elif rows <= 0:
+        rows = math.ceil(count / max(1, columns))
+    if columns * rows < count:
+        # A grade escolhida nao cabe: o eixo que o usuario nao fixou cresce.
+        if layout.order == "column":
+            columns = math.ceil(count / max(1, rows))
+        else:
+            rows = math.ceil(count / max(1, columns))
+    return max(1, columns), max(1, rows)
+
+
+def _grid_cell(index: int, columns: int, rows: int, order: str) -> tuple[int, int]:
+    if order == "column":
+        return index % rows, index // rows
+    return index // columns, index % columns
+
+
+def _grid_positions(sizes: list[tuple[float, float]], layout: GridLayout) -> tuple[list[tuple[float, float]], int, int, float, float]:
+    """Canto inferior esquerdo de cada desenho na grade.
+
+    A grade cresce para a direita e para baixo a partir da origem, como uma
+    prancheta lida de cima para baixo.
+    """
+    count = len(sizes)
+    columns, rows = _resolve_grid(count, layout)
+    cells = [_grid_cell(index, columns, rows, layout.order) for index in range(count)]
+
+    widest = max((width for width, _ in sizes), default=0.0)
+    tallest = max((height for _, height in sizes), default=0.0)
+    gap_x = layout.gap_x if layout.gap_x > 0 else max(widest * RELATIVE_GAP_FACTOR, DEFAULT_GAP)
+    gap_y = layout.gap_y if layout.gap_y > 0 else max(tallest * RELATIVE_GAP_FACTOR, DEFAULT_GAP)
+
+    column_widths = [0.0] * columns
+    row_heights = [0.0] * rows
+    for index, (row, column) in enumerate(cells):
+        width, height = sizes[index]
+        column_widths[column] = max(column_widths[column], width)
+        row_heights[row] = max(row_heights[row], height)
+    if layout.uniform:
+        column_widths = [widest] * columns
+        row_heights = [tallest] * rows
+
+    column_x = [0.0] * columns
+    for column in range(1, columns):
+        column_x[column] = column_x[column - 1] + column_widths[column - 1] + gap_x
+    row_top = [0.0] * rows
+    for row in range(1, rows):
+        row_top[row] = row_top[row - 1] - row_heights[row - 1] - gap_y
+
+    positions: list[tuple[float, float]] = []
+    for index, (row, column) in enumerate(cells):
+        width, height = sizes[index]
+        # Desenhos de tamanhos diferentes ficam centralizados na propria celula.
+        x = column_x[column] + (column_widths[column] - width) / 2.0
+        y = row_top[row] - row_heights[row] + (row_heights[row] - height) / 2.0
+        positions.append((x, y))
+    return positions, columns, rows, gap_x, gap_y
+
+
+def _same_bounds(first: Bounds, second: Bounds, tolerance: float = 1e-6) -> bool:
+    return (
+        abs(first.min_x - second.min_x) <= tolerance
+        and abs(first.min_y - second.min_y) <= tolerance
+        and abs(first.width - second.width) <= tolerance
+        and abs(first.height - second.height) <= tolerance
+    )
 
 
 def _point3(value) -> tuple[float, float, float] | None:
@@ -118,9 +206,15 @@ def _point3(value) -> tuple[float, float, float] | None:
         return None
 
 
-def _get_bounds(block_reference) -> Bounds:
+def _get_bounds(block_reference, cancel_event=None, attempts: int = 1) -> Bounds:
+    """Limites do bloco inserido.
+
+    A medicao do primeiro bloco costuma cair em "aplicativo ocupado" logo depois
+    da insercao; sem retry ela voltava invalida e o desenho era tratado como se
+    tivesse tamanho zero, terminando no centro da celula em vez do canto.
+    """
     try:
-        min_point, max_point = block_reference.GetBoundingBox()
+        min_point, max_point = _retry_com(lambda: block_reference.GetBoundingBox(), cancel_event, max(1, attempts))
         minimum = _point3(min_point)
         maximum = _point3(max_point)
         if minimum is None or maximum is None:
@@ -128,6 +222,16 @@ def _get_bounds(block_reference) -> Bounds:
         return Bounds(*minimum, *maximum)
     except Exception:
         return Bounds()
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2.0
 
 
 def _move_block(block_reference, dx: float, dy: float, dz: float, cancel_event) -> None:
@@ -202,7 +306,7 @@ def _insert_dwg_as_block(document, input_file: str, x: float, y: float, z: float
         raise RuntimeError(f"O AutoCAD nao conseguiu inserir {Path(input_file).name}: {exc}") from exc
 
 
-def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter, preserve_layouts: bool, cancel_event=None) -> None:
+def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter, preserve_layouts: bool, cancel_event=None, layout: GridLayout | None = None) -> None:
     pythoncom, client, pywintypes = _import_com()
     pythoncom.CoInitialize()
     target_document = None
@@ -218,9 +322,8 @@ def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter,
         if preserve_layouts:
             log.warning("A importacao de layouts foi ignorada no modo rapido para evitar lentidao e abas auxiliares no AutoCAD. O arquivo final mantem os desenhos unidos no Model Space.")
 
-        next_min_x = 0.0
-        baseline_y = 0.0
-        inserted_count = 0
+        grid = layout or GridLayout()
+        inserted: list[list] = []
         for input_file in input_files:
             _check_cancel(cancel_event)
             if not os.path.exists(input_file):
@@ -228,29 +331,72 @@ def merge_with_autocad(input_files: list[str], output_path: str, log: LogWriter,
                 continue
 
             insert_file = _ensure_insertable_dwg(acad, input_file, log, cancel_event)
-            planned_x = next_min_x
             block_reference = _insert_dwg_as_block(target_document, insert_file, 0.0, 0.0, 0.0, cancel_event)
-            inserted_count += 1
 
-            bounds = _get_bounds(block_reference)
-            if not bounds.is_valid:
-                _regen(target_document, cancel_event)
-                bounds = _get_bounds(block_reference)
-
-            if bounds.is_valid:
-                _move_block(block_reference, planned_x - bounds.min_x, baseline_y - bounds.min_y, -bounds.min_z, cancel_event)
-                bounds = bounds.shift_to(planned_x, baseline_y, 0.0)
-            else:
-                log.warning(f"Nao foi possivel medir limites de {Path(input_file).name}; usando espaçamento conservador.")
-
-            gap = max(bounds.width * RELATIVE_GAP_FACTOR, DEFAULT_GAP) if bounds.is_valid else DEFAULT_GAP
-            next_min_x = (bounds.max_x if bounds.is_valid else planned_x + DEFAULT_GAP) + gap
+            inserted.append([input_file, block_reference, _get_bounds(block_reference, cancel_event, 12)])
             log.info(f"DWG inserido no Model Space: {Path(input_file).name}")
-            log.info(f"Alinhamento aplicado: menor X = {planned_x:.3f}; menor Y = {baseline_y:.3f}.")
-            log.info(f"Espacamento automatico reduzido aplicado: proximo X = {next_min_x:.3f}.")
 
-        if inserted_count == 0:
+        if not inserted:
             raise RuntimeError("Nenhum DWG foi inserido no arquivo final.")
+
+        # O limite lido logo apos a insercao pode vir defasado - acontecia com o
+        # primeiro desenho, que era posicionado fora da celula. Um regen depois
+        # de inserir tudo estabiliza a medicao de todos os blocos.
+        _check_cancel(cancel_event)
+        _regen(target_document, cancel_event)
+        for item in inserted:
+            _check_cancel(cancel_event)
+            input_file, block_reference, first_reading = item
+            settled = _get_bounds(block_reference, cancel_event, 12)
+            if settled.is_valid:
+                if first_reading.is_valid and not _same_bounds(first_reading, settled):
+                    log.info(f"Limites de {Path(input_file).name} corrigidos pelo regen antes do posicionamento.")
+                item[2] = settled
+
+        # Um desenho sem medida valida nao pode entrar na grade como tamanho
+        # zero: ele seria centralizado na celula e sairia da linha dos demais.
+        # A mediana dos outros mantem o mesmo enquadramento do lote.
+        measured = [bounds for _, _, bounds in inserted if bounds.is_valid]
+        reference = Bounds(
+            _median([bounds.min_x for bounds in measured]),
+            _median([bounds.min_y for bounds in measured]),
+            _median([bounds.min_z for bounds in measured]),
+            _median([bounds.min_x + bounds.width for bounds in measured]),
+            _median([bounds.min_y + bounds.height for bounds in measured]),
+            _median([bounds.min_z for bounds in measured]),
+        )
+        for item in inserted:
+            if item[2].is_valid:
+                continue
+            if measured:
+                item[2] = reference
+                log.warning(
+                    f"Nao foi possivel medir limites de {Path(item[0]).name}; "
+                    "o desenho foi alinhado pelo enquadramento mediano dos demais."
+                )
+            else:
+                log.warning(f"Nao foi possivel medir limites de {Path(item[0]).name}; o desenho recebe uma celula com o tamanho padrao.")
+
+        sizes = [(bounds.width, bounds.height) for _, _, bounds in inserted]
+        positions, columns, rows, gap_x, gap_y = _grid_positions(sizes, grid)
+        order_text = "por coluna (de cima para baixo)" if grid.order == "column" else "por linha (da esquerda para a direita)"
+        log.info(f"Disposicao aplicada: {columns} coluna(s) x {rows} linha(s) para {len(inserted)} desenho(s), preenchimento {order_text}.")
+        log.info(
+            f"Espacamento X = {gap_x:.3f} ({'manual' if grid.gap_x > 0 else 'automatico'}); "
+            f"espacamento Y = {gap_y:.3f} ({'manual' if grid.gap_y > 0 else 'automatico'}); "
+            f"celulas {'uniformes' if grid.uniform else 'ajustadas ao desenho'}."
+        )
+
+        for index, (input_file, block_reference, bounds) in enumerate(inserted):
+            _check_cancel(cancel_event)
+            target_x, target_y = positions[index]
+            _move_block(block_reference, target_x - bounds.min_x, target_y - bounds.min_y, -bounds.min_z, cancel_event)
+            row, column = _grid_cell(index, columns, rows, grid.order)
+            log.info(
+                f"{Path(input_file).name} posicionado na linha {row + 1}, coluna {column + 1} "
+                f"(menor X = {target_x:.3f}; menor Y = {target_y:.3f}; "
+                f"tamanho medido = {bounds.width:.3f} x {bounds.height:.3f})."
+            )
 
         _check_cancel(cancel_event)
         _regen(target_document, cancel_event)
