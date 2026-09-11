@@ -183,22 +183,22 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 }
 .drop.drag-over{background:#edf6fb;border-color:var(--blue);box-shadow:inset 0 0 0 1px rgba(23,111,159,.16)}
 /* O Windows desenha o ícone do arrasto por cima da janela e ele cobre a
-   faixa de soltura. Esta camada dá um alvo que o ícone não esconde, e
-   soltar em qualquer ponto dela vale. */
+   faixa de soltura, que tem 40 px. Esta camada cresce so o bastante para
+   o ícone não escondê-la: ela cobre a área de arquivos, do campo de
+   arrastar até o fim da lista. O tamanho vem do próprio layout. */
 .drop-overlay{
-  position:fixed;inset:0;z-index:9000;display:none;
-  align-items:center;justify-content:center;padding:22px;
-  background:rgba(243,242,241,.82)
+  position:fixed;z-index:9000;display:none;
+  align-items:center;justify-content:center
 }
 .drop-overlay.show{display:flex}
 .drop-overlay-card{
-  width:100%;height:100%;border:2px dashed var(--blue);border-radius:4px;
-  background:#f8fcfe;color:var(--blue);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px
+  width:100%;height:100%;border:2px dashed var(--blue);border-radius:3px;
+  background:#eef7fc;color:var(--blue);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px
 }
-.drop-overlay-card svg{width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.drop-overlay-title{font-size:16px;font-weight:600}
-.drop-overlay-hint{font-size:12px;color:var(--muted)}
+.drop-overlay-card svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.drop-overlay-title{font-size:13px;font-weight:600}
+.drop-overlay-hint{font-size:11px;color:var(--muted)}
 .drop svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
 .filetitle{font-size:11px;color:var(--muted);margin-top:7px}
 .filebox{
@@ -550,7 +550,7 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
       <path d="M12 4v10M8.5 7.5L12 4l3.5 3.5"/>
     </svg>
     <div class="drop-overlay-title">Solte os arquivos aqui</div>
-    <div class="drop-overlay-hint">PDF e DWG · pode soltar em qualquer ponto da janela</div>
+    <div class="drop-overlay-hint">PDF e DWG</div>
   </div>
 </div>
 <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
@@ -1762,9 +1762,22 @@ function dragHasFiles(event) {
   return Boolean(types && Array.from(types).includes("Files"));
 }
 
+// A camada acompanha a area de arquivos: do campo de arrastar ate o fim da
+// lista. Medir na hora evita depender de alturas fixas no CSS.
+function positionDropOverlay() {
+  const inicio = dropZone.getBoundingClientRect();
+  const fim = $("#selectedList").getBoundingClientRect();
+  const overlay = $("#dropOverlay");
+  overlay.style.left = `${Math.round(inicio.left)}px`;
+  overlay.style.top = `${Math.round(inicio.top)}px`;
+  overlay.style.width = `${Math.round(inicio.width)}px`;
+  overlay.style.height = `${Math.round(fim.bottom - inicio.top)}px`;
+}
+
 function showDropOverlay(visible) {
   if (!visible) dragDepth = 0;
   const overlay = $("#dropOverlay");
+  if (visible) positionDropOverlay();
   overlay.classList.toggle("show", Boolean(visible));
   overlay.setAttribute("aria-hidden", String(!visible));
   setDropVisual(visible);
