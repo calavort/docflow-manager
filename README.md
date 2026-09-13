@@ -1,3 +1,8 @@
+## Ajustes da V8.0.2
+
+- **Arrastar e soltar** simplificado para um único listener nativo no documento, com suporte a `pywebviewFullPath` em `dataTransfer` e `domTransfer`.
+- **Seleção de arquivos** memoriza a última pasta usada em configuração local persistente e volta a ela na abertura seguinte.
+
 # DOCFLOW MANAGER — PYTHON V8
 
 ## Guia "Atualização" (GitHub Releases)

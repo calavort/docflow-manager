@@ -119,22 +119,16 @@ def main() -> None:
             def _on_drag(_event) -> None:
                 return None
 
-            drop_zone = bound_window.dom.get_element("#dropZone")
-            drop_targets = [bound_window.dom.document]
-            if drop_zone is not None:
-                drop_targets.append(drop_zone)
-
-            bound_window.dom.document.events.dragenter += DOMEventHandler(
-                _on_drag, True, True
-            )
-            bound_window.dom.document.events.dragstart += DOMEventHandler(
-                _on_drag, True, True
-            )
-            bound_window.dom.document.events.dragover += DOMEventHandler(
+            # O drop nativo fica ligado apenas ao documento inteiro. Esta é a
+            # configuração usada pelo exemplo oficial do pywebview e evita
+            # duplicidade/competição entre o documento e a faixa #dropZone.
+            document = bound_window.dom.document
+            document.events.dragenter += DOMEventHandler(_on_drag, True, True)
+            document.events.dragstart += DOMEventHandler(_on_drag, True, True)
+            document.events.dragover += DOMEventHandler(
                 _on_drag, True, True, debounce=250
             )
-            for target in drop_targets:
-                target.events.drop += DOMEventHandler(backend.on_dom_drop, True, True)
+            document.events.drop += DOMEventHandler(backend.on_dom_drop, True, True)
         except Exception as exc:
             # O seletor nativo permanece disponivel. Registra um diagnostico
             # sem abrir console para o usuario.

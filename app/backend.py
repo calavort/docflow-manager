@@ -34,9 +34,48 @@ class DocFlowBackend:
         self.operation_cancel: threading.Event | None = None
         self._lock = threading.RLock()
         self._pending_drop_paths: list[str] = []
+        self._settings_path = (
+            Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+            / "DocFlow Manager"
+            / "settings.json"
+        )
+        self._last_input_folder = self._load_last_input_folder()
 
     def attach_window(self, window) -> None:
         self.window = window
+
+    def _load_last_input_folder(self) -> str:
+        try:
+            if not self._settings_path.is_file():
+                return ""
+            data = json.loads(self._settings_path.read_text(encoding="utf-8"))
+            folder = str(data.get("last_input_folder") or "").strip()
+            return folder if folder and os.path.isdir(folder) else ""
+        except Exception:
+            return ""
+
+    def _save_last_input_folder(self, folder: str) -> None:
+        folder = os.path.abspath(str(folder or "").strip()) if folder else ""
+        if not folder or not os.path.isdir(folder):
+            return
+        self._last_input_folder = folder
+        try:
+            self._settings_path.parent.mkdir(parents=True, exist_ok=True)
+            payload: dict[str, Any] = {}
+            if self._settings_path.is_file():
+                try:
+                    current = json.loads(self._settings_path.read_text(encoding="utf-8"))
+                    if isinstance(current, dict):
+                        payload.update(current)
+                except Exception:
+                    pass
+            payload["last_input_folder"] = folder
+            self._settings_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
     def attach_update_instance(self, instance) -> None:
         """Liga o servico de atualizacao a reserva desta janela."""
@@ -119,28 +158,46 @@ class DocFlowBackend:
 
 
     def on_dom_drop(self, event: dict[str, Any]) -> None:
-        """Captura caminhos completos fornecidos pelo DOM do pywebview.
+        """Captura os caminhos absolutos adicionados pelo pywebview ao evento drop.
 
-        O Javascript consome esses caminhos em seguida com ``consumeDroppedFiles``;
-        assim não dependemos de executar Javascript de volta a partir deste evento.
+        O pywebview 6.2.x pode expor a transferencia em ``dataTransfer`` ou
+        ``domTransfer``. A interface consulta a fila pelo endpoint HTTP, o que
+        evita executar Javascript a partir da thread do evento nativo.
         """
         try:
-            transfer = event.get("dataTransfer") or event.get("domTransfer") or {}
-            files = transfer.get("files") or []
             paths: list[str] = []
-            for item in files:
-                path = item.get("pywebviewFullPath") or item.get("path")
-                if path:
-                    paths.append(str(path))
-            if paths:
-                with self._lock:
-                    existing = {os.path.normcase(item) for item in self._pending_drop_paths}
-                    for path in paths:
-                        if os.path.normcase(path) not in existing:
-                            self._pending_drop_paths.append(path)
-                            existing.add(os.path.normcase(path))
-        except Exception:
-            pass
+            for transfer_name in ("dataTransfer", "domTransfer"):
+                transfer = event.get(transfer_name) or {}
+                files = transfer.get("files") or []
+                for item in files:
+                    if not isinstance(item, dict):
+                        continue
+                    path = item.get("pywebviewFullPath") or item.get("path") or item.get("fullPath")
+                    if path:
+                        path = os.path.abspath(str(path))
+                        if os.path.isfile(path):
+                            paths.append(path)
+
+            if not paths:
+                return
+
+            with self._lock:
+                existing = {os.path.normcase(item) for item in self._pending_drop_paths}
+                for path in paths:
+                    key = os.path.normcase(path)
+                    if key not in existing:
+                        self._pending_drop_paths.append(path)
+                        existing.add(key)
+        except Exception as exc:
+            try:
+                log_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "DocFlow Manager"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                (log_dir / "drag_drop_error.log").write_text(
+                    f"Falha ao receber arquivos arrastados: {type(exc).__name__}: {exc}\n",
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Seleção de arquivos / pasta
@@ -154,6 +211,8 @@ class DocFlowBackend:
         if not paths:
             return {"type": "cancelled"}
 
+        selected_folder = os.path.dirname(os.path.abspath(paths[0]))
+        self._save_last_input_folder(selected_folder)
         self.operations.add_files(paths)
         return self._state_response("filesChanged")
 
@@ -301,9 +360,11 @@ class DocFlowBackend:
     # Diálogos nativos do Windows sem console/flash
     # ------------------------------------------------------------------
     def _native_select_files(self, operation: str) -> list[str]:
+        initial = self._last_input_folder if os.path.isdir(self._last_input_folder) else desktop_directory()
+
         if os.name == "nt":
             try:
-                return self._powershell_file_dialog(operation)
+                return self._powershell_file_dialog(operation, initial)
             except Exception:
                 pass
 
@@ -319,7 +380,12 @@ class DocFlowBackend:
                 file_types = ("PDF (*.pdf)",)
             else:
                 file_types = ("Documentos técnicos (*.pdf;*.dwg)", "PDF (*.pdf)", "DWG (*.dwg)")
-            selected = self.window.create_file_dialog(dialog_open, allow_multiple=True, file_types=file_types)
+            selected = self.window.create_file_dialog(
+                dialog_open,
+                directory=initial,
+                allow_multiple=True,
+                file_types=file_types,
+            )
             return [str(item) for item in (selected or [])]
         except Exception:
             return []
@@ -352,7 +418,7 @@ class DocFlowBackend:
     def _hidden_creation_flags() -> int:
         return getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) if os.name == "nt" else 0
 
-    def _powershell_file_dialog(self, operation: str) -> list[str]:
+    def _powershell_file_dialog(self, operation: str, initial: str = "") -> list[str]:
         if operation == "mergeDwg":
             filter_text = "DWG (*.dwg)|*.dwg"
         elif operation in {"mergePdf", "splitPdf"}:
@@ -360,9 +426,7 @@ class DocFlowBackend:
         else:
             filter_text = "Documentos técnicos (*.pdf;*.dwg)|*.pdf;*.dwg|PDF (*.pdf)|*.pdf|DWG (*.dwg)|*.dwg"
 
-        initial = desktop_directory()
-        if self.operations.files:
-            initial = os.path.dirname(self.operations.files[0].full_path) or initial
+        initial = initial if initial and os.path.isdir(initial) else desktop_directory()
 
         with tempfile.TemporaryDirectory(prefix="docflow_dialog_") as tmp:
             result_file = os.path.join(tmp, "selection.txt")
