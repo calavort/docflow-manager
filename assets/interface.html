@@ -123,17 +123,14 @@ input{
 input:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 .pattern-field{position:relative}
 .pattern-field input{padding-right:38px}
-.preview-field .preview{padding-right:38px}
+#nameOrder{cursor:pointer}
 .batch-field input{padding-right:38px}
-.batch-menu{width:156px;padding:5px}
 .batch-option{
   width:100%;height:29px;border:0;background:#fff;color:#323130;padding:0 9px;
-  display:flex;align-items:center;gap:8px;font:12px "Segoe UI",Arial;text-align:left;cursor:pointer
+  display:flex;align-items:center;font:12px "Segoe UI",Arial;text-align:left;cursor:pointer
 }
 .batch-option:hover{background:#f3f2f1}
 .batch-option.active{color:var(--blue);font-weight:600;background:#f8fcfe}
-.batch-option svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;opacity:0}
-.batch-option.active svg{opacity:1}
 .pattern-toggle{
   position:absolute;right:1px;top:1px;width:30px;height:26px;border:0;border-left:1px solid #d8d8d8;
   background:#fff;color:var(--blue);display:grid;place-items:center;padding:0;cursor:pointer
@@ -144,10 +141,14 @@ input:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
   position:absolute;right:0;top:32px;width:164px;background:#fff;border:1px solid #c8c6c4;
   box-shadow:0 8px 18px rgba(0,0,0,.14);z-index:30;padding:8px
 }
-.check-option{
-  display:flex;align-items:center;gap:8px;margin:0;color:#323130;font:12px "Segoe UI",Arial;cursor:pointer
+.pattern-menu.batch-menu{width:156px;padding:0}
+.pattern-menu.name-order-menu{left:0;right:0;width:auto;padding:0}
+.name-order-option{
+  width:100%;height:29px;border:0;background:#fff;color:#323130;padding:0 9px;
+  display:flex;align-items:center;font:12px "Segoe UI",Arial;text-align:left;cursor:pointer
 }
-.check-option input{width:14px;height:14px;margin:0;accent-color:var(--blue);flex:none}
+.name-order-option:hover{background:#f3f2f1}
+.name-order-option.active{color:var(--blue);font-weight:600;background:#f8fcfe}
 .sep{border-top:1px solid #eee;margin:9px 0}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 8px}
 .tab{
@@ -362,17 +363,15 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
         <div>
           <label for="codigo">Código do desenho</label>
           <div class="pattern-field batch-field" id="batchField">
-            <input id="codigo" value="IME-MC-1-43293">
-            <button class="pattern-toggle" id="batchToggle" type="button" aria-label="Tipo de lote" aria-expanded="false" title="Tipo de lote">
+            <input id="codigo" autocomplete="off" value="IME-MC-1-43293">
+            <button class="pattern-toggle" id="batchToggle" type="button" aria-label="Tipo de lote" aria-expanded="false">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
             </button>
             <div class="pattern-menu batch-menu hidden" id="batchMenu">
               <button class="batch-option active" type="button" data-batch-mode="complete">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4 4 10-10"/></svg>
                 <span>Lote completo</span>
               </button>
               <button class="batch-option" type="button" data-batch-mode="partial">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4 4 10-10"/></svg>
                 <span>Lote parcial</span>
               </button>
             </div>
@@ -398,43 +397,24 @@ select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
       </div>
 
       <div class="tab-panel" id="panelPadrao" role="tabpanel" aria-labelledby="tabPadrao">
-        <label for="padrao">Nome do arquivo</label>
-        <div class="pattern-field" id="patternField">
-          <input id="padrao" placeholder="Definir padrão">
-          <button class="pattern-toggle" id="patternToggle" type="button" aria-label="Opções do padrão" aria-expanded="false" title="Opções do padrão">
+        <label for="nameOrder">Ordem de exibição</label>
+        <div class="pattern-field" id="nameOrderField">
+          <input id="nameOrder" value="Folha + Revisão" readonly aria-haspopup="listbox" aria-controls="nameOrderMenu">
+          <button class="pattern-toggle" id="nameOrderToggle" type="button" aria-label="Selecionar ordem de exibição" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
           </button>
-          <div class="pattern-menu hidden" id="patternMenu">
-            <label class="check-option">
-              <input type="checkbox" id="includeRevision" checked>
-              <span>Incluir revisão</span>
-            </label>
-            <label class="check-option" style="margin-top:7px">
-              <input type="checkbox" id="includePagination" checked>
-              <span>Incluir paginação</span>
-            </label>
+          <div class="pattern-menu name-order-menu hidden" id="nameOrderMenu" role="listbox" aria-label="Ordem de exibição">
+            <button class="name-order-option" type="button" role="option" aria-selected="false" data-name-order="revision">Revisão</button>
+            <button class="name-order-option" type="button" role="option" aria-selected="false" data-name-order="sheet">Folha</button>
+            <button class="name-order-option" type="button" role="option" aria-selected="false" data-name-order="revisionSheet">Revisão + Folha</button>
+            <button class="name-order-option active" type="button" role="option" aria-selected="true" data-name-order="sheetRevision">Folha + Revisão</button>
           </div>
         </div>
 
         <div style="height:6px"></div>
 
-        <label>Prévia do nome</label>
-        <div class="pattern-field preview-field" id="previewField">
-          <div class="preview" id="preview">IME-MC-1-43293 FL1-1 Rev.0</div>
-          <button class="pattern-toggle" id="previewToggle" type="button" aria-label="Opções da prévia" aria-expanded="false" title="Opções da prévia">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
-          </button>
-          <div class="pattern-menu hidden" id="previewMenu">
-            <label class="check-option">
-              <input type="checkbox" id="previewIncludeRevision" checked>
-              <span>Incluir revisão</span>
-            </label>
-            <label class="check-option" style="margin-top:7px">
-              <input type="checkbox" id="previewIncludePagination" checked>
-              <span>Incluir paginação</span>
-            </label>
-          </div>
-        </div>
+        <label for="preview">Prévia do nome</label>
+        <div class="preview" id="preview" role="status">IME-MC-1-43293 FL1-1 Rev.0</div>
       </div>
 
       <div class="tab-panel hidden" id="panelParametros" role="tabpanel" aria-labelledby="tabParametros">
@@ -575,8 +555,7 @@ const state = {
   operation: "rename",
   operationRunning: false,
   pinned: true,
-  includeRevision: true,
-  includePagination: true,
+  nameOrder: "sheetRevision",
   files: [],
   batchMode: "complete",
   sheetAnchor: "start",
@@ -706,10 +685,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function escapeRegExp(value) {
-  return String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // "Rev. 2" e "Rev.2" chegam ao campo Revisão como "2" nos dois casos.
@@ -852,10 +827,7 @@ function normalizeSheetField() {
 function setBatchMenu(open) {
   $("#batchMenu").classList.toggle("hidden", !open);
   $("#batchToggle").setAttribute("aria-expanded", String(Boolean(open)));
-  if (open) {
-    setPatternMenu(false);
-    setPreviewMenu(false);
-  }
+  if (open) setNameOrderMenu(false);
 }
 
 function renderBatchMode() {
@@ -863,7 +835,6 @@ function renderBatchMode() {
     option.classList.toggle("active", option.dataset.batchMode === state.batchMode);
   });
   const modeLabel = state.batchMode === "partial" ? "Lote parcial" : "Lote completo";
-  $("#batchToggle").title = `Tipo de lote: ${modeLabel}`;
   $("#batchToggle").setAttribute("aria-label", `Tipo de lote: ${modeLabel}`);
   $("#folhaFinal").title = state.batchMode === "partial"
     ? "Folha final do conjunto completo"
@@ -1017,93 +988,43 @@ function mixConfirmMessage() {
   return fileTypeCounts().size > 1 ? question : "";
 }
 
-function manualPatternHasRevision(value) {
-  return /\{rev(?:isao)?\}/i.test(value) || /(^|[\s._-])rev\.?\s*[0-9a-z]+/i.test(value);
-}
+const nameOrderLabels = {
+  revision: "Revisão",
+  sheet: "Folha",
+  revisionSheet: "Revisão + Folha",
+  sheetRevision: "Folha + Revisão"
+};
 
-function manualPatternHasPagination(value) {
-  return /\{(?:folha|sheet|total)\}/i.test(value) || /(^|[\s._-])FL\.?\s*\d+(?:\s*-\s*\d+)?/i.test(value);
-}
+const nameOrderParts = {
+  revision: ["revision"],
+  sheet: ["sheet"],
+  revisionSheet: ["revision", "sheet"],
+  sheetRevision: ["sheet", "revision"]
+};
 
-function shouldIncludeRevisionForManual(value) {
-  return Boolean(clean(value) && state.includeRevision && !manualPatternHasRevision(value));
-}
-
-function shouldIncludePaginationForManual(value) {
-  return Boolean(clean(value) && state.includePagination && !manualPatternHasPagination(value));
-}
-
-function appendRevisionToManualName(value, sourcePattern) {
-  const name = clean(value);
-  if (!name || !shouldIncludeRevisionForManual(sourcePattern || name)) return name;
-  return `${name} ${normalizedRevision($("#revisao").value)}`;
-}
-
-function appendPaginationToManualName(value, sourcePattern, sheetRange = currentSheetRange()) {
-  const name = clean(value);
-  if (!name || !shouldIncludePaginationForManual(sourcePattern || name)) return name;
-  const pagination = `FL${sheetRange.start}-${sheetRange.total}`;
-  const revisionMatch = name.match(/(^|[\s._-])(Rev\.?\s*[0-9a-z]+)(?=$|[\s._-])/i);
-  if (!revisionMatch || revisionMatch.index == null) return `${name} ${pagination}`;
-  const index = revisionMatch.index + revisionMatch[1].length;
-  return clean(`${name.slice(0, index)}${pagination} ${name.slice(index)}`);
-}
-
-function appendRevisionToManualPattern(value) {
-  const pattern = clean(value);
-  if (!pattern || !shouldIncludeRevisionForManual(pattern)) return pattern;
-  return `${pattern} {rev}`;
-}
-
-function appendPaginationToManualPattern(value) {
-  const pattern = clean(value);
-  if (!pattern || !shouldIncludePaginationForManual(pattern)) return pattern;
-  const revisionToken = pattern.match(/(^|[\s._-])(\{rev(?:isao)?\}|Rev\.?\s*[0-9a-z]+)(?=$|[\s._-])/i);
-  if (!revisionToken || revisionToken.index == null) return `${pattern} FL{folha}-{total}`;
-  const index = revisionToken.index + revisionToken[1].length;
-  return clean(`${pattern.slice(0, index)}FL{folha}-{total} ${pattern.slice(index)}`);
+function composeOutputName(code, sheet, revision) {
+  const values = { sheet, revision };
+  const order = nameOrderParts[state.nameOrder] || nameOrderParts.sheetRevision;
+  return [code, ...order.map(part => values[part])].filter(Boolean).join(" ");
 }
 
 function buildAutomaticPattern() {
   const code = clean($("#codigo").value) || "{codigo}";
-  const parts = [code];
-  if (state.includePagination) parts.push("FL{folha}-{total}");
-  if (state.includeRevision) parts.push(normalizedRevision($("#revisao").value));
-  return parts.join(" ");
+  return composeOutputName(
+    code,
+    "FL{folha}-{total}",
+    normalizedRevision($("#revisao").value)
+  );
 }
 
-function replaceNameTokens(value, sheetRange = currentSheetRange()) {
-  const code = clean($("#codigo").value) || "IME-MC-1-43293";
-  const revision = normalizedRevision($("#revisao").value);
-  const replacements = {
-    "{codigo}": code,
-    "{code}": code,
-    "{folha}": String(sheetRange.start),
-    "{sheet}": String(sheetRange.start),
-    "{total}": String(sheetRange.total),
-    "{rev}": revision,
-    "{revisao}": revision
-  };
-  let result = String(value || "");
-  Object.entries(replacements).forEach(([token, replacement]) => {
-    result = result.replace(new RegExp(escapeRegExp(token), "ig"), replacement);
-  });
-  return clean(result);
-}
-
-function baseOutputName(manualValue = clean($("#padrao").value)) {
+function baseOutputName() {
   const sheetRange = currentSheetRange();
   const code = clean($("#codigo").value) || "IME-MC-1-43293";
-  const automaticParts = [code];
-  if (state.includePagination) automaticParts.push(`FL${sheetRange.start}-${sheetRange.total}`);
-  if (state.includeRevision) automaticParts.push(normalizedRevision($("#revisao").value));
-  const automaticName = automaticParts.join(" ");
-  if (!manualValue) return replaceNameTokens(automaticName, sheetRange) || automaticName;
-
-  let name = replaceNameTokens(manualValue, sheetRange);
-  name = appendPaginationToManualName(name, manualValue, sheetRange);
-  name = appendRevisionToManualName(name, manualValue);
-  return name || automaticName;
+  return composeOutputName(
+    code,
+    `FL${sheetRange.start}-${sheetRange.total}`,
+    normalizedRevision($("#revisao").value)
+  );
 }
 function withOperationExtension(baseName) {
   const extension = {
@@ -1115,21 +1036,8 @@ function withOperationExtension(baseName) {
   return baseName + extension;
 }
 
-function buildOutputPattern(manualValue) {
-  const automaticPattern = buildAutomaticPattern();
-  if (!manualValue || state.operation !== "rename") {
-    return automaticPattern;
-  }
-
-  const sheetRange = currentSheetRange();
-  let patternText = manualValue;
-  patternText = patternText.replace(new RegExp(`FL\\.?\\s*${escapeRegExp(String(sheetRange.start))}\\s*-\\s*${escapeRegExp(String(sheetRange.total))}`, "i"), "FL{folha}-{total}");
-  patternText = appendPaginationToManualPattern(patternText);
-  return appendRevisionToManualPattern(patternText);
-}
-
-function finalOutputBaseName(manualValue = clean($("#padrao").value)) {
-  let baseName = baseOutputName(manualValue);
+function finalOutputBaseName() {
+  let baseName = baseOutputName();
   if (state.operation !== "mergePdf") return baseName;
 
   const candidate = withOperationExtension(baseName).toLowerCase();
@@ -1137,15 +1045,13 @@ function finalOutputBaseName(manualValue = clean($("#padrao").value)) {
     String(file.extension || "").toUpperCase() === "PDF" &&
     String(file.name || "").trim().toLowerCase() === candidate
   );
-  const noNamingOptions = !state.includeRevision && !state.includePagination;
-  if ((conflictsWithSource || noNamingOptions) && !/\sUnificado$/i.test(baseName)) {
+  if (conflictsWithSource && !/\sUnificado$/i.test(baseName)) {
     baseName = `${baseName} Unificado`;
   }
   return clean(baseName);
 }
 function currentOptions(extra = {}) {
-  const manualValue = clean($("#padrao").value);
-  const outputFileName = state.operation === "rename" ? "" : finalOutputBaseName(manualValue);
+  const outputFileName = state.operation === "rename" ? "" : finalOutputBaseName();
   const sheetRange = currentSheetRange();
   return {
     operation: state.operation,
@@ -1153,7 +1059,7 @@ function currentOptions(extra = {}) {
     sheetStart: sheetRange.start,
     totalSheets: sheetRange.total,
     splitIntervals: "",
-    outputPattern: buildOutputPattern(manualValue),
+    outputPattern: buildAutomaticPattern(),
     outputFileName,
     generateLog: false,
     preserveLayouts: false,
@@ -1553,36 +1459,29 @@ $("#updateInstall").addEventListener("click", () => {
   offerUpdate();
 });
 
-function syncNamingMenuChecks() {
-  $("#includeRevision").checked = state.includeRevision;
-  $("#previewIncludeRevision").checked = state.includeRevision;
-  $("#includePagination").checked = state.includePagination;
-  $("#previewIncludePagination").checked = state.includePagination;
+function renderNameOrder() {
+  const activeOrder = nameOrderParts[state.nameOrder] ? state.nameOrder : "sheetRevision";
+  state.nameOrder = activeOrder;
+  $("#nameOrder").value = nameOrderLabels[activeOrder];
+  $$(".name-order-option").forEach(option => {
+    const active = option.dataset.nameOrder === activeOrder;
+    option.classList.toggle("active", active);
+    option.setAttribute("aria-selected", String(active));
+  });
 }
 
-function namingOptionsChanged() {
-  syncNamingMenuChecks();
+function setNameOrderMenu(open) {
+  $("#nameOrderMenu").classList.toggle("hidden", !open);
+  $("#nameOrderToggle").setAttribute("aria-expanded", String(Boolean(open)));
+  if (open) setBatchMenu(false);
+}
+
+function setNameOrder(order) {
+  state.nameOrder = nameOrderParts[order] ? order : "sheetRevision";
+  renderNameOrder();
+  setNameOrderMenu(false);
   updatePreview();
   requestPreview();
-}
-
-function setPatternMenu(open) {
-  $("#patternMenu").classList.toggle("hidden", !open);
-  $("#patternToggle").setAttribute("aria-expanded", String(Boolean(open)));
-  if (open) {
-    setBatchMenu(false);
-    setPreviewMenu(false);
-  }
-}
-
-function setPreviewMenu(open) {
-  $("#previewMenu").classList.toggle("hidden", !open);
-  $("#previewToggle").setAttribute("aria-expanded", String(Boolean(open)));
-  if (open) setBatchMenu(false);
-  if (open && !$("#patternMenu").classList.contains("hidden")) {
-    $("#patternMenu").classList.add("hidden");
-    $("#patternToggle").setAttribute("aria-expanded", "false");
-  }
 }
 
 $("#batchToggle").addEventListener("click", event => {
@@ -1594,42 +1493,24 @@ $$(".batch-option").forEach(option => {
   option.addEventListener("click", () => setBatchMode(option.dataset.batchMode));
 });
 
-$("#patternToggle").addEventListener("click", event => {
+$("#nameOrderToggle").addEventListener("click", event => {
   event.stopPropagation();
-  setPatternMenu($("#patternMenu").classList.contains("hidden"));
+  setNameOrderMenu($("#nameOrderMenu").classList.contains("hidden"));
 });
-
-$("#previewToggle").addEventListener("click", event => {
+$("#nameOrder").addEventListener("click", event => {
   event.stopPropagation();
-  setPreviewMenu($("#previewMenu").classList.contains("hidden"));
+  setNameOrderMenu($("#nameOrderMenu").classList.contains("hidden"));
 });
-
-$("#patternMenu").addEventListener("click", event => event.stopPropagation());
-$("#previewMenu").addEventListener("click", event => event.stopPropagation());
-
-$("#includeRevision").addEventListener("change", () => {
-  state.includeRevision = $("#includeRevision").checked;
-  namingOptionsChanged();
-});
-$("#previewIncludeRevision").addEventListener("change", () => {
-  state.includeRevision = $("#previewIncludeRevision").checked;
-  namingOptionsChanged();
-});
-$("#includePagination").addEventListener("change", () => {
-  state.includePagination = $("#includePagination").checked;
-  namingOptionsChanged();
-});
-$("#previewIncludePagination").addEventListener("change", () => {
-  state.includePagination = $("#previewIncludePagination").checked;
-  namingOptionsChanged();
+$("#nameOrderMenu").addEventListener("click", event => event.stopPropagation());
+$$(".name-order-option").forEach(option => {
+  option.addEventListener("click", () => setNameOrder(option.dataset.nameOrder));
 });
 document.addEventListener("click", event => {
   if (!$("#batchField").contains(event.target)) setBatchMenu(false);
-  if (!$("#patternField").contains(event.target)) setPatternMenu(false);
-  if (!$("#previewField").contains(event.target)) setPreviewMenu(false);
+  if (!$("#nameOrderField").contains(event.target)) setNameOrderMenu(false);
 });
 
-["#codigo", "#revisao", "#padrao"].forEach(selector => {
+["#codigo", "#revisao"].forEach(selector => {
   $(selector).addEventListener("input", () => {
     updatePreview();
     requestPreview();
@@ -1866,12 +1747,8 @@ document.addEventListener("keydown", event => {
     setBatchMenu(false);
     return;
   }
-  if (!$("#patternMenu").classList.contains("hidden")) {
-    setPatternMenu(false);
-    return;
-  }
-  if (!$("#previewMenu").classList.contains("hidden")) {
-    setPreviewMenu(false);
+  if (!$("#nameOrderMenu").classList.contains("hidden")) {
+    setNameOrderMenu(false);
     return;
   }
   if (dialogIsOpen()) closeDialog(false);
@@ -1887,7 +1764,7 @@ window.addEventListener("DOMContentLoaded", () => {
 setMainTab("operacao");
 renderFiles([]);
 renderBatchMode();
-syncNamingMenuChecks();
+renderNameOrder();
 updatePreview();
 setTab("padrao");
 updateTabsForOperation();

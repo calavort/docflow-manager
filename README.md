@@ -1,3 +1,11 @@
+## Ajustes da V8.0.3
+
+- **Código do desenho livre**: continua sendo sugerido pelos arquivos carregados, mas aceita qualquer código digitado pelo usuário.
+- **Ordem de exibição**: substitui o antigo campo de nome manual e permite escolher `Revisão`, `Folha`, `Revisão + Folha` ou `Folha + Revisão`.
+- **Prévia simplificada**: mostra diretamente o nome final, sem menu ou opções duplicadas.
+- **Menus mais limpos**: a seleção ocupa a linha inteira, sem marca de confirmação nem dicas desnecessárias nas setas.
+- **Digitação silenciosa**: o WebView2 não exibe mais a notificação de informações salvas ao digitar o código.
+
 ## Ajustes da V8.0.2
 
 - **Arrastar e soltar** simplificado para um único listener nativo no documento, com suporte a `pywebviewFullPath` em `dataTransfer` e `domTransfer`.
